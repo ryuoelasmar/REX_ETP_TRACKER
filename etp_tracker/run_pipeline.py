@@ -5,6 +5,7 @@ from .sec_client import SECClient
 from .step2 import step2_submissions_and_prospectus
 from .step3 import step3_extract_for_trust
 from .step4 import step4_rollup_for_trust
+from .step5 import step5_name_history_for_trust
 
 def run_pipeline(ciks: list[str], overrides: dict | None = None, since: str | None = None, until: str | None = None,
                  output_root: Path | str = "outputs", cache_dir: Path | str = "http_cache",
@@ -26,5 +27,8 @@ def run_pipeline(ciks: list[str], overrides: dict | None = None, since: str | No
 
     for t in tqdm(trusts, desc="Roll-up (Step 4)", leave=False):
         step4_rollup_for_trust(output_root, t)
+
+    for t in tqdm(trusts, desc="Name History (Step 5)", leave=False):
+        step5_name_history_for_trust(output_root, t)
 
     return len(trusts)

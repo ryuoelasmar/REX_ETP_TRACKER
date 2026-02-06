@@ -11,7 +11,7 @@ except Exception:
     SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{CIK_PADDED}.json"
 
 class SECClient:
-    def __init__(self, user_agent: str = USER_AGENT_DEFAULT, request_timeout: int = 45, pause: float = 0.35, cache_dir: Path | str = "http_cache"):
+    def __init__(self, user_agent: str = USER_AGENT_DEFAULT, request_timeout: int = 30, pause: float = 0.25, cache_dir: Path | str = "http_cache"):
         self.user_agent = user_agent or USER_AGENT_DEFAULT
         self.timeout = request_timeout
         self.pause = float(pause)

@@ -1,0 +1,7 @@
+http_cache/
+outputs/
+*.pyc
+__pycache__/
+temp_*.txt
+temp_*.html
+.git/
