@@ -18,15 +18,42 @@ from pathlib import Path
 import pandas as pd
 
 
+def _load_recipients(project_root: Path | None = None) -> list[str]:
+    """
+    Load recipients from email_recipients.txt (one email per line).
+    Falls back to SMTP_TO env var if file not found.
+    """
+    if project_root is None:
+        project_root = Path(__file__).parent.parent
+    recipients_file = project_root / "email_recipients.txt"
+    if recipients_file.exists():
+        lines = recipients_file.read_text().strip().splitlines()
+        return [line.strip() for line in lines if line.strip() and not line.startswith("#")]
+    # Fallback to env var
+    env_to = os.environ.get("SMTP_TO", "")
+    return [e.strip() for e in env_to.split(",") if e.strip()]
+
+
 def _get_smtp_config() -> dict:
-    """Read SMTP config from environment variables."""
+    """Read SMTP config from .env file or environment variables."""
+    # Try reading from .env file in project root
+    project_root = Path(__file__).parent.parent
+    env_file = project_root / ".env"
+    env_vars = {}
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, val = line.split("=", 1)
+                env_vars[key.strip()] = val.strip().strip('"').strip("'")
+
     return {
-        "host": os.environ.get("SMTP_HOST", "smtp.gmail.com"),
-        "port": int(os.environ.get("SMTP_PORT", "587")),
-        "user": os.environ.get("SMTP_USER", ""),
-        "password": os.environ.get("SMTP_PASSWORD", ""),
-        "from_addr": os.environ.get("SMTP_FROM", ""),
-        "to_addrs": os.environ.get("SMTP_TO", "").split(","),
+        "host": env_vars.get("SMTP_HOST", os.environ.get("SMTP_HOST", "smtp.gmail.com")),
+        "port": int(env_vars.get("SMTP_PORT", os.environ.get("SMTP_PORT", "587"))),
+        "user": env_vars.get("SMTP_USER", os.environ.get("SMTP_USER", "")),
+        "password": env_vars.get("SMTP_PASSWORD", os.environ.get("SMTP_PASSWORD", "")),
+        "from_addr": env_vars.get("SMTP_FROM", os.environ.get("SMTP_FROM", "")),
+        "to_addrs": _load_recipients(project_root),
     }
 
 
