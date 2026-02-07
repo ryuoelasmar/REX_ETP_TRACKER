@@ -76,11 +76,19 @@ def main():
     print("\n[2/3] Exporting Excel...")
     export_excel(OUTPUT_DIR)
 
-    # Step 3: Send email digest
-    print("\n[3/3] Sending email digest...")
+    # Step 3: Save digest + send email if configured
+    print("\n[3/3] Building digest...")
+    from etp_tracker.email_alerts import build_digest_html, send_digest_email
+    html = build_digest_html(OUTPUT_DIR, DASHBOARD_URL)
+    digest_path = OUTPUT_DIR / "daily_digest.html"
+    digest_path.write_text(html, encoding="utf-8")
+    print(f"  Saved: {digest_path}")
+
     sent = send_digest_email(OUTPUT_DIR, DASHBOARD_URL)
     if not sent:
-        print("  Skipped (SMTP not configured)")
+        print("  Email skipped (SMTP not configured). Opening digest in browser...")
+        import webbrowser
+        webbrowser.open(str(digest_path.resolve()))
 
     elapsed = time.time() - start
     print(f"\n=== Done in {elapsed:.0f}s ({elapsed/60:.1f}m) ===")
