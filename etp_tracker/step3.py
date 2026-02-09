@@ -136,6 +136,20 @@ def _find_effective_date_in_text(txt: str) -> tuple[str, str, bool]:
 
     return "", "", delaying
 
+_NAME_JUNK_PREFIXES = re.compile(
+    r"^(?:SUMMARY\s+PROSPECTUS\s+.*?TRUST\s+SUMMARY\s+PROSPECTUS\s+|"
+    r"SUMMARY\s+PROSPECTUS\s+|"
+    r"Prospectus\s+for\s+|"
+    r"Income\s+ETF\s+|"
+    r"Option\s+Strategy\s+ETF\s+)",
+    re.IGNORECASE,
+)
+
+def _clean_html_fund_name(name: str) -> str:
+    """Strip junk prefixes from an extracted HTML fund name."""
+    cleaned = _NAME_JUNK_PREFIXES.sub("", name).strip()
+    return cleaned if len(cleaned) > 5 else ""
+
 def _extract_fund_names_from_html(html_text: str) -> list[str]:
     """
     Extract fund names from HTML body text.
@@ -144,7 +158,7 @@ def _extract_fund_names_from_html(html_text: str) -> list[str]:
     if not html_text:
         return []
 
-    names = []
+    raw_names = []
     # Pattern for fund names in tables or text (ETF, Fund, Trust suffix)
     patterns = [
         r"([A-Z][A-Za-z0-9\s\-\.]+(?:ETF|Fund|Trust))",
@@ -156,10 +170,22 @@ def _extract_fund_names_from_html(html_text: str) -> list[str]:
     for pat in patterns:
         for m in re.finditer(pat, html_text):
             name = re.sub(r"\s+", " ", m.group(0)).strip()
-            if len(name) > 10 and name not in names:
-                names.append(name)
+            if len(name) > 10 and name not in raw_names:
+                raw_names.append(name)
 
-    return names[:50]  # Limit to prevent excessive results
+    # Clean extracted names: strip junk prefixes, skip compound names
+    names = []
+    for raw in raw_names:
+        cleaned = _clean_html_fund_name(raw)
+        if not cleaned:
+            continue
+        # Skip compound names ("X ETF and Y ETF") - these are multi-fund prospectuses
+        if re.search(r"\b(?:ETF|Fund)\s+and\s+", cleaned, re.IGNORECASE):
+            continue
+        if cleaned not in names:
+            names.append(cleaned)
+
+    return names[:50]
 
 
 def _find_prospectus_name_for_sgml(sgml_name: str, html_names: list[str]) -> str:

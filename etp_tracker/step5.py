@@ -2,7 +2,7 @@
 Step 5: Name History Tracking
 
 Tracks all name changes for funds using the permanent Series ID.
-Outputs a separate CSV with name history for each fund.
+Only uses SGML-sourced names (authoritative SEC-registered names).
 """
 from __future__ import annotations
 import pandas as pd
@@ -16,6 +16,7 @@ def step5_name_history_for_trust(output_root, trust_name: str) -> int:
     Build name history for all funds in a trust.
 
     Uses Series ID as the permanent identifier to track name changes across filings.
+    Only tracks SGML-sourced names (Class Contract Name / Series Name from SEC headers).
     Outputs to {trust_name}_5_Name_History.csv
 
     Columns:
@@ -46,21 +47,13 @@ def step5_name_history_for_trust(output_root, trust_name: str) -> int:
     df["_fdt"] = pd.to_datetime(df.get("Filing Date", ""), errors="coerce")
     df = df.sort_values("_fdt", ascending=True)
 
-    # Get name from Class Contract Name or Series Name
+    # Get name from Class Contract Name or Series Name (SGML sources only)
     df["_name"] = df.get("Class Contract Name", pd.Series("", index=df.index)).fillna("")
     df.loc[df["_name"] == "", "_name"] = df.get("Series Name", pd.Series("", index=df.index)).fillna("")
 
     # Clean names for comparison
     df["_name_clean"] = df["_name"].apply(clean_fund_name_for_rollup)
     df["_name_key"] = df["_name_clean"].str.casefold()
-
-    # Also track prospectus names (from HTML body)
-    if "Prospectus Name" in df.columns:
-        df["_prosp_name"] = df["Prospectus Name"].fillna("")
-        df["_prosp_name_clean"] = df["_prosp_name"].apply(clean_fund_name_for_rollup)
-    else:
-        df["_prosp_name"] = ""
-        df["_prosp_name_clean"] = ""
 
     history_rows = []
 
@@ -71,7 +64,7 @@ def step5_name_history_for_trust(output_root, trust_name: str) -> int:
 
         g = group.sort_values("_fdt", ascending=True)
 
-        # Track unique names in order of appearance
+        # Track unique SGML names only (authoritative SEC-registered names)
         seen_names = {}  # name_key -> {name, first_date, last_date, first_form, first_accession}
 
         for _, row in g.iterrows():
@@ -93,30 +86,12 @@ def step5_name_history_for_trust(output_root, trust_name: str) -> int:
                 else:
                     seen_names[name_key]["last_date"] = filing_date
 
-            # Also track prospectus names if different
-            prosp_name = row.get("_prosp_name_clean", "")
-            prosp_raw = row.get("_prosp_name", "")
-            if prosp_name and prosp_raw:
-                prosp_key = prosp_name.casefold()
-                if prosp_key and prosp_key not in seen_names:
-                    seen_names[prosp_key] = {
-                        "name": prosp_raw,
-                        "first_date": filing_date,
-                        "last_date": filing_date,
-                        "first_form": form,
-                        "first_accession": accession,
-                        "source": "PROSPECTUS",
-                    }
-                elif prosp_key in seen_names:
-                    seen_names[prosp_key]["last_date"] = filing_date
-
         # Determine which is current (latest by last_date)
         if seen_names:
             latest_key = max(seen_names.keys(), key=lambda k: seen_names[k]["last_date"])
 
             for name_key, info in seen_names.items():
                 is_current = "Y" if name_key == latest_key else ""
-                source = info.get("source", "SGML")
 
                 history_rows.append({
                     "Series ID": series_id,
@@ -127,7 +102,6 @@ def step5_name_history_for_trust(output_root, trust_name: str) -> int:
                     "Is Current": is_current,
                     "Source Form": info["first_form"],
                     "Source Accession": info["first_accession"],
-                    "Name Source": source,
                 })
 
     if not history_rows:

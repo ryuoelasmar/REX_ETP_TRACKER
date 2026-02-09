@@ -1,8 +1,11 @@
 from __future__ import annotations
+import re
 import pandas as pd
 from datetime import datetime
 from .paths import output_paths_for_trust
-from .utils import clean_fund_name_for_rollup, titlecase_safe
+from .utils import clean_fund_name_for_rollup
+
+_BAD_TICKERS = {"SYMBOL", "NAN", "N/A", "NA", "NONE", "TBD", ""}
 
 def _determine_status(row: pd.Series) -> tuple[str, str]:
     """
@@ -146,7 +149,13 @@ def step4_rollup_for_trust(output_root, trust_name: str) -> int:
         series_id_val = g["Series ID"].dropna().iloc[-1] if not g["Series ID"].dropna().empty else ""
         class_id_val = g["Class-Contract ID"].dropna().iloc[-1] if "Class-Contract ID" in g.columns and not g["Class-Contract ID"].dropna().empty else ""
 
-        # Get name - prefer Prospectus Name if available (indicates name change), else SGML name
+        # Fund Name: Use SGML name (authoritative SEC-registered name)
+        raw_name = g["Class Contract Name"].fillna("").iloc[-1]
+        if not raw_name:
+            raw_name = g["Series Name"].fillna("").iloc[-1]
+        canonical_name = clean_fund_name_for_rollup(raw_name)
+
+        # Keep prospectus name for reference only
         prospectus_name = ""
         if "Prospectus Name" in g.columns:
             pn = g["Prospectus Name"].dropna()
@@ -154,22 +163,24 @@ def step4_rollup_for_trust(output_root, trust_name: str) -> int:
             if not pn.empty:
                 prospectus_name = pn.iloc[-1]
 
-        raw_name = g["Class Contract Name"].fillna("").iloc[-1]
-        if not raw_name:
-            raw_name = g["Series Name"].fillna("").iloc[-1]
-
-        # Use prospectus name if different (indicates name change in progress)
-        display_name = prospectus_name if prospectus_name else raw_name
-        canonical_name = titlecase_safe(clean_fund_name_for_rollup(display_name))
-
-        ticker = g["Class Symbol"].fillna("").str.upper()
-        ticker = ticker[ticker != ""].iloc[-1] if not ticker[ticker != ""].empty else ""
+        # Clean ticker: filter out placeholder values
+        ticker = g["Class Symbol"].fillna("").str.upper().str.strip()
+        ticker = ticker[~ticker.isin(_BAD_TICKERS)]
+        ticker = ticker.iloc[-1] if not ticker.empty else ""
 
         registrant = g["Registrant"].fillna("").iloc[-1] if "Registrant" in g.columns else trust_name
         cik = g["CIK"].fillna("").iloc[-1] if "CIK" in g.columns else ""
 
         eff_date = str(latest.get("Effective Date", "")).strip()
         eff_confidence = str(latest.get("Effective Date Confidence", "")).strip() if "Effective Date Confidence" in latest.index else ""
+
+        # Prospectus Link: only use 485BPOS or 485APOS links (NOT 497)
+        prosp_link = ""
+        g_485 = g[g["Form"].fillna("").str.upper().str.startswith("485")]
+        if not g_485.empty:
+            prosp_link = str(g_485.iloc[-1].get("Primary Link", ""))
+        if not prosp_link:
+            prosp_link = str(latest.get("Primary Link", ""))
 
         results.append({
             "Series ID": series_id_val,
@@ -186,7 +197,7 @@ def step4_rollup_for_trust(output_root, trust_name: str) -> int:
             "Effective Date Confidence": eff_confidence,
             "Latest Form": str(latest.get("Form", "")),
             "Latest Filing Date": str(latest.get("Filing Date", "")),
-            "Prospectus Link": str(latest.get("Primary Link", "")),
+            "Prospectus Link": prosp_link,
         })
 
     if not results:
