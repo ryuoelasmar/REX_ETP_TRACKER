@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}AI Analysis - ETP Filing Tracker{% endblock %}
+
+{% block content %}
+<div class="header">
+  <h1>AI Filing Analysis</h1>
+  {% if filing %}
+  <div class="date">{{ filing.form }} - {{ filing.filing_date or 'N/A' }} ({{ filing.accession_number }})</div>
+  {% endif %}
+</div>
+
+{% if error %}
+<div style="padding:16px; background:#f8d7da; border:1px solid #f5c6cb; border-radius:8px; color:#721c24; margin-bottom:20px;">
+  {{ error }}
+</div>
+{% endif %}
+
+{% if filing %}
+<div class="detail-header">
+  <h2>{{ trust.name if trust else 'Unknown Trust' }}</h2>
+  {% if filing.primary_link %}
+  <a href="{{ filing.primary_link }}" target="_blank" class="btn btn-sm">View Filing on SEC</a>
+  {% endif %}
+</div>
+
+<div class="meta-grid" style="margin-bottom:24px;">
+  <div class="meta-item">
+    <div class="meta-label">Form</div>
+    <div class="meta-value">{{ filing.form }}</div>
+  </div>
+  <div class="meta-item">
+    <div class="meta-label">Filing Date</div>
+    <div class="meta-value">{{ filing.filing_date or 'N/A' }}</div>
+  </div>
+  <div class="meta-item">
+    <div class="meta-label">Cached Text</div>
+    <div class="meta-value">
+      {% if has_text %}
+        {{ (text_length / 1000)|round(1) }}K characters
+      {% else %}
+        Not available
+      {% endif %}
+    </div>
+  </div>
+  {% if cost_estimate %}
+  <div class="meta-item">
+    <div class="meta-label">Estimated Cost</div>
+    <div class="meta-value">${{ cost_estimate.cost_est_usd }}</div>
+  </div>
+  {% endif %}
+</div>
+
+{% if configured and has_text %}
+<div style="padding:20px; background:#f8f9fa; border:1px solid var(--border); border-radius:8px; margin-bottom:24px;">
+  <h3 style="margin-top:0;">Run New Analysis</h3>
+  <form method="post" action="/analysis/filing/{{ filing.id }}">
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px; margin-bottom:16px;">
+      {% for key, type in analysis_types.items() %}
+      <label style="display:flex; align-items:flex-start; gap:8px; padding:12px; background:white; border:1px solid var(--border); border-radius:6px; cursor:pointer;">
+        <input type="radio" name="analysis_type" value="{{ key }}" {% if loop.first %}checked{% endif %} style="margin-top:3px;">
+        <div>
+          <strong>{{ type.label }}</strong>
+          <div style="font-size:12px; color:var(--muted); margin-top:2px;">{{ type.description }}</div>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn btn-primary">Run Analysis (Claude Sonnet)</button>
+    {% if cost_estimate %}
+    <span style="font-size:12px; color:var(--muted); margin-left:12px;">
+      ~{{ cost_estimate.input_tokens_est|int }} input + {{ cost_estimate.output_tokens_est }} output tokens
+    </span>
+    {% endif %}
+  </form>
+</div>
+{% elif not configured %}
+<div style="padding:16px; background:#fff3cd; border:1px solid #ffc107; border-radius:8px; color:#856404; margin-bottom:24px;">
+  Claude API key not configured. Add ANTHROPIC_API_KEY to your .env file.
+</div>
+{% elif not has_text %}
+<div style="padding:16px; background:#fff3cd; border:1px solid #ffc107; border-radius:8px; color:#856404; margin-bottom:24px;">
+  No cached filing text available. Run the pipeline first to download this filing.
+</div>
+{% endif %}
+
+{% if existing_analyses %}
+<h3>Previous Analyses</h3>
+{% for a in existing_analyses %}
+<div style="border:1px solid var(--border); border-radius:8px; margin-bottom:16px; overflow:hidden; {% if just_ran == a.analysis_type and loop.first %}border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,102,204,0.15);{% endif %}">
+  <div style="padding:12px 16px; background:#f8f9fa; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+    <div>
+      <strong>{{ analysis_types[a.analysis_type].label if a.analysis_type in analysis_types else a.analysis_type }}</strong>
+      <span style="font-size:12px; color:var(--muted); margin-left:8px;">{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+    </div>
+    <div style="font-size:11px; color:var(--muted);">
+      {{ a.model_used or '' }} &middot; {{ a.input_tokens or 0 }} in / {{ a.output_tokens or 0 }} out
+      {% if a.requested_by %} &middot; by {{ a.requested_by }}{% endif %}
+    </div>
+  </div>
+  <div style="padding:16px; font-size:14px; line-height:1.6;">
+    {% if a.result_html %}
+      {{ a.result_html|safe }}
+    {% else %}
+      <pre style="white-space:pre-wrap; font-family:inherit;">{{ a.result_text }}</pre>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% endif %}
+{% endblock %}

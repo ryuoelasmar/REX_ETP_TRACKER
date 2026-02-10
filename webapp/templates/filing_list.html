@@ -28,6 +28,7 @@
       <th>Trust</th>
       <th>Accession</th>
       <th>Document</th>
+      <th>AI</th>
     </tr>
   </thead>
   <tbody>
@@ -43,10 +44,11 @@
         <a href="{{ f.primary_link }}" target="_blank">View</a>
         {% endif %}
       </td>
+      <td><a href="/analysis/filing/{{ f.id }}" class="btn btn-sm" style="font-size:11px;">Analyze</a></td>
     </tr>
     {% endfor %}
     {% if not filings %}
-    <tr><td colspan="5" class="empty-state">No filings found.</td></tr>
+    <tr><td colspan="6" class="empty-state">No filings found.</td></tr>
     {% endif %}
   </tbody>
 </table>

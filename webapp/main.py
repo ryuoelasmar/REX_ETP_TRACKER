@@ -43,13 +43,14 @@ def create_app() -> FastAPI:
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     # Routers
-    from webapp.routers import auth_routes, dashboard, trusts, funds, filings, search
+    from webapp.routers import auth_routes, dashboard, trusts, funds, filings, search, analysis
     app.include_router(auth_routes.router)
     app.include_router(dashboard.router)
     app.include_router(trusts.router, prefix="/trusts")
     app.include_router(funds.router, prefix="/funds")
     app.include_router(filings.router, prefix="/filings")
     app.include_router(search.router)
+    app.include_router(analysis.router)
 
     # Health check
     @app.get("/health")
