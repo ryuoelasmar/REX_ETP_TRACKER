@@ -19,6 +19,7 @@ sqlalchemy>=2.0.0
 
 # Authentication + Email (Azure)
 msal>=1.28.0
+itsdangerous>=2.1.0
 
 # AI Analysis (Claude)
 anthropic>=0.39.0

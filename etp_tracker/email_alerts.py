@@ -702,19 +702,40 @@ def send_digest_email(
 ) -> bool:
     """
     Build and send the daily digest email.
+    Tries Azure Graph API first, falls back to SMTP.
     Returns True if sent successfully.
     """
-    config = _get_smtp_config()
-    if not config["user"] or not config["password"] or not config["from_addr"] or not any(config["to_addrs"]):
-        print("SMTP not configured. Set SMTP_USER, SMTP_PASSWORD, SMTP_FROM in .env and add recipients to email_recipients.txt.")
+    recipients = _load_recipients()
+    if not recipients:
+        print("No recipients configured. Add emails to email_recipients.txt.")
         return False
 
     html_body = build_digest_html(output_dir, dashboard_url, since_date)
+    subject = f"ETP Filing Tracker - Daily Digest ({datetime.now().strftime('%Y-%m-%d')})"
+
+    # --- Try Azure Graph API first ---
+    try:
+        from webapp.services.graph_email import is_configured, send_email
+        if is_configured():
+            print("  Sending via Azure Graph API...")
+            if send_email(subject=subject, html_body=html_body, recipients=recipients):
+                print(f"  Digest sent via Azure to {', '.join(recipients)}")
+                return True
+            else:
+                print("  Azure Graph API failed. Trying SMTP fallback...")
+    except ImportError:
+        pass  # webapp not installed, skip Azure
+
+    # --- Fall back to SMTP ---
+    config = _get_smtp_config()
+    if not config["user"] or not config["password"] or not config["from_addr"]:
+        print("Neither Azure nor SMTP configured.")
+        return False
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"ETP Filing Tracker - Daily Digest ({datetime.now().strftime('%Y-%m-%d')})"
+    msg["Subject"] = subject
     msg["From"] = config["from_addr"]
-    msg["To"] = ", ".join(config["to_addrs"])
+    msg["To"] = ", ".join(recipients)
     msg.attach(MIMEText(html_body, "html"))
 
     try:
@@ -723,9 +744,9 @@ def send_digest_email(
             server.starttls()
             server.ehlo()
             server.login(config["user"], config["password"])
-            server.sendmail(config["from_addr"], config["to_addrs"], msg.as_string())
-        print(f"Digest sent to {', '.join(config['to_addrs'])}")
+            server.sendmail(config["from_addr"], recipients, msg.as_string())
+        print(f"  Digest sent via SMTP to {', '.join(recipients)}")
         return True
     except Exception as e:
-        print(f"Failed to send email: {e}")
+        print(f"  Failed to send email: {e}")
         return False
