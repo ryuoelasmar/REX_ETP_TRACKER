@@ -92,4 +92,5 @@ def add_trust(request: Request, cik: str = "", name: str = "", db: Session = Dep
     ))
     db.commit()
 
-    return RedirectResponse(f"/trusts/{slug}", status_code=302)
+    from urllib.parse import quote
+    return RedirectResponse(f"/?added={quote(name)}", status_code=302)

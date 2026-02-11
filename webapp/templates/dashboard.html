@@ -1,20 +1,18 @@
 {% extends "base.html" %}
 {% block title %}ETP Filing Tracker - Dashboard{% endblock %}
 
-{% block nav_extra %}
-<select onchange="jumpToTrust(this.value)" style="margin-left:auto">
-  <option value="">Jump to Trust...</option>
-  {% for t in trusts %}
-  <option value="{{ t.slug }}">{{ t.name }}</option>
-  {% endfor %}
-</select>
-{% endblock %}
-
 {% block content %}
 <div class="header">
   <h1>ETP Filing Tracker</h1>
   <div class="date">{{ today.strftime('%B %d, %Y') }} &middot; {{ trusts|length }} trusts monitored</div>
 </div>
+
+{% if added %}
+<div style="padding:14px 20px; background:#d4edda; border:1px solid #c3e6cb; border-radius:8px; color:#155724; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center;">
+  <span><strong>{{ added }}</strong> has been added to monitoring. Filing data will appear after the next pipeline run.</span>
+  <a href="/" style="color:#155724; font-weight:600;">Dismiss</a>
+</div>
+{% endif %}
 
 <!-- KPIs -->
 <div class="kpi-row">
@@ -42,39 +40,69 @@
 
 <!-- Recent Filings -->
 {% if recent_filings %}
-<div class="what-changed">
+<div class="section-header">
   <h2>Recent Filings (Last 7 Days)</h2>
-  <div>
-    <span class="stat"><b>{{ recent_filings|length }}</b> filings</span>
-  </div>
+  <a href="/filings/" class="badge" style="text-decoration:none;">View All</a>
 </div>
+<table>
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Form</th>
+      <th>Trust</th>
+      <th>Accession</th>
+      <th>Doc</th>
+      <th>AI</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in recent_filings %}
+    {% set f = row.Filing %}
+    <tr>
+      <td>{{ f.filing_date or '' }}</td>
+      <td>{{ f.form }}</td>
+      <td><a href="/trusts/{{ row.trust_slug }}">{{ row.trust_name }}</a></td>
+      <td style="font-size:11px;">{{ f.accession_number }}</td>
+      <td>
+        {% if f.primary_link %}
+        <a href="{{ f.primary_link }}" target="_blank">View</a>
+        {% endif %}
+      </td>
+      <td><a href="/analysis/filing/{{ f.id }}" class="btn btn-sm" style="font-size:11px;">Analyze</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% endif %}
 
-<!-- All Trusts -->
-<div class="section-header" id="all-trusts">
-  <h2>All Trusts</h2>
-  <span class="badge">{{ trusts|length }} trusts</span>
+<!-- All Trusts (Card Grid) -->
+<div class="section-header" style="margin-top:30px;">
+  <h2>Monitored Trusts</h2>
+  <span class="badge">{{ trusts|length }}</span>
 </div>
 
-<input type="text" id="global-search" placeholder="Search all funds by name or ticker..."
-       style="padding:8px 14px; border:1px solid var(--border); border-radius:6px; width:100%; max-width:400px; font-size:14px; margin-bottom:10px;"
-       oninput="globalSearch(this.value)">
-
-{% for t in trusts %}
-<div class="trust-block" id="trust-{{ t.slug }}" data-trust="{{ t.name }}">
-  <div class="trust-header" onclick="toggleTrust(this)">
-    <h3>{{ t.name }}</h3>
-    <div>
-      <span class="stats">{{ t.total }} funds: {{ t.pending }} pending | {{ t.effective }} effective | {{ t.delayed }} delayed</span>
-      <span class="arrow">&#9654;</span>
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; margin-top:12px;">
+  {% for t in trusts %}
+  <a href="/trusts/{{ t.slug }}" class="trust-card" style="text-decoration:none; color:inherit; display:block; border:1px solid var(--border); border-radius:8px; padding:16px; background:var(--light); transition:box-shadow 0.15s, border-color 0.15s;">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+      <h3 style="font-size:15px; margin:0;">{{ t.name }}</h3>
+      {% if t.is_rex %}
+      <span style="background:var(--blue); color:white; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600;">[REX]</span>
+      {% endif %}
     </div>
-  </div>
-  <div class="trust-body">
-    <div style="padding:16px; text-align:center;">
-      <a href="/trusts/{{ t.slug }}" class="btn btn-primary btn-sm">View All Funds &rarr;</a>
+    <div style="display:flex; gap:16px; font-size:13px; color:var(--gray);">
+      <span><strong>{{ t.total }}</strong> funds</span>
+      <span style="color:var(--green);">{{ t.effective }} eff</span>
+      <span style="color:var(--orange);">{{ t.pending }} pend</span>
+      {% if t.delayed > 0 %}
+      <span style="color:var(--red);">{{ t.delayed }} del</span>
+      {% endif %}
     </div>
-  </div>
+  </a>
+  {% endfor %}
 </div>
-{% endfor %}
 
+<style>
+  .trust-card:hover { border-color: var(--blue) !important; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+</style>
 {% endblock %}

@@ -57,7 +57,7 @@ def _trust_stats(db: Session) -> list[dict]:
 
 
 @router.get("/")
-def dashboard(request: Request, db: Session = Depends(get_db)):
+def dashboard(request: Request, added: str = "", db: Session = Depends(get_db)):
     trust_list = _trust_stats(db)
 
     total_funds = sum(t["total"] for t in trust_list)
@@ -68,7 +68,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     # Recent filings (last 7 days)
     week_ago = date.today() - timedelta(days=7)
     recent_filings = db.execute(
-        select(Filing, Trust.name.label("trust_name"))
+        select(Filing, Trust.name.label("trust_name"), Trust.slug.label("trust_slug"))
         .join(Trust, Trust.id == Filing.trust_id)
         .where(Filing.filing_date >= week_ago)
         .order_by(Filing.filing_date.desc())
@@ -84,4 +84,5 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         "total_delayed": total_delayed,
         "recent_filings": recent_filings,
         "today": date.today(),
+        "added": added,
     })

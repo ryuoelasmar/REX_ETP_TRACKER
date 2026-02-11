@@ -5,7 +5,7 @@
 <div class="header">
   <div style="display:flex; justify-content:space-between; align-items:center;">
     <div>
-      <h1>{{ trust.name }}</h1>
+      <h1>{{ trust.name }}{% if trust.is_rex %} <span style="background:var(--blue); color:white; padding:2px 10px; border-radius:10px; font-size:14px; font-weight:600; vertical-align:middle;">[REX]</span>{% endif %}</h1>
       <div class="date">CIK: {{ trust.cik }} &middot; {{ total }} funds tracked</div>
     </div>
     <a href="/" class="btn btn-primary btn-sm">&larr; Back to Dashboard</a>
@@ -114,6 +114,7 @@
       <th>Form</th>
       <th>Accession</th>
       <th>Document</th>
+      <th>AI</th>
     </tr>
   </thead>
   <tbody>
@@ -121,12 +122,13 @@
     <tr>
       <td>{{ f.filing_date or '' }}</td>
       <td>{{ f.form }}</td>
-      <td>{{ f.accession_number }}</td>
+      <td style="font-size:11px;">{{ f.accession_number }}</td>
       <td>
         {% if f.primary_link %}
         <a href="{{ f.primary_link }}" target="_blank">View</a>
         {% endif %}
       </td>
+      <td><a href="/analysis/filing/{{ f.id }}" class="btn btn-sm" style="font-size:11px;">Analyze</a></td>
     </tr>
     {% endfor %}
   </tbody>
