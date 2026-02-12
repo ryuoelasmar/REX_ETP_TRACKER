@@ -18,19 +18,30 @@ router = APIRouter(prefix="/screener", tags=["screener"])
 templates = Jinja2Templates(directory="webapp/templates")
 log = logging.getLogger(__name__)
 
-PAGE_SIZE = 50
+# Tickers to exclude from rankings (known bad data)
+EXCLUDE_TICKERS = {"WBHC US"}
+
+
+def _get_launched_underliers() -> set[str]:
+    """Get launched underliers to exclude from rankings. Graceful on failure."""
+    try:
+        from screener.data_loader import load_etp_data
+        from screener.filing_match import get_launched_underliers
+        etp_df = load_etp_data()
+        return get_launched_underliers(etp_df)
+    except Exception as e:
+        log.warning("Could not load launched underliers: %s", e)
+        return set()
 
 
 @router.get("/")
-def screener_rankings(
+def screener_opportunities(
     request: Request,
     q: str = "",
     sector: str = "",
-    qualified: str = "",
-    page: int = Query(1, ge=1),
     db: Session = Depends(get_db),
 ):
-    """Main screener rankings page."""
+    """Main screener page - two tables: all opportunities + filed only."""
     # Get latest upload
     latest_upload = db.execute(
         select(ScreenerUpload)
@@ -42,39 +53,58 @@ def screener_rankings(
     if not latest_upload:
         return templates.TemplateResponse("screener_rankings.html", {
             "request": request,
-            "results": [],
-            "total": 0,
-            "page": 1,
-            "pages": 1,
+            "all_opportunities": [],
+            "filed_only": [],
+            "total_screened": 0,
+            "launched_count": 0,
+            "filed_count": 0,
             "q": q,
             "sector": sector,
-            "qualified": qualified,
             "sectors": [],
             "upload": None,
-            "tab": "rankings",
+            "tab": "opportunities",
         })
 
-    # Build query
-    query = select(ScreenerResult).where(ScreenerResult.upload_id == latest_upload.id)
-
-    if q:
-        query = query.where(ScreenerResult.ticker.ilike(f"%{q}%"))
-    if sector:
-        query = query.where(ScreenerResult.sector == sector)
-    if qualified == "1":
-        query = query.where(ScreenerResult.passes_filters == True)
-
-    # Count total
-    count_q = select(func.count()).select_from(query.subquery())
-    total = db.execute(count_q).scalar() or 0
-    pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
-
-    # Fetch page
-    results = db.execute(
-        query.order_by(ScreenerResult.composite_score.desc())
-        .offset((page - 1) * PAGE_SIZE)
-        .limit(PAGE_SIZE)
+    # Fetch ALL results ordered by score
+    all_results = db.execute(
+        select(ScreenerResult)
+        .where(ScreenerResult.upload_id == latest_upload.id)
+        .order_by(ScreenerResult.composite_score.desc())
     ).scalars().all()
+
+    total_screened = len(all_results)
+
+    # Get launched underliers to exclude
+    launched = _get_launched_underliers()
+    launched_count = len(launched)
+
+    # Filter out launched underliers + bad data
+    clean_results = []
+    for r in all_results:
+        ticker_clean = r.ticker.replace(" US", "").upper()
+        if r.ticker in EXCLUDE_TICKERS:
+            continue
+        if ticker_clean in launched:
+            continue
+        clean_results.append(r)
+
+    # Apply search/sector filters
+    if q:
+        q_upper = q.strip().upper()
+        clean_results = [r for r in clean_results if q_upper in r.ticker.upper()]
+    if sector:
+        clean_results = [r for r in clean_results if r.sector == sector]
+
+    # Split: all opportunities (top 50) + filed only (top 50)
+    all_opportunities = clean_results[:50]
+    filed_only = [
+        r for r in clean_results
+        if r.filing_status and r.filing_status.startswith("REX Filed")
+    ][:50]
+    filed_count = sum(
+        1 for r in clean_results
+        if r.filing_status and r.filing_status.startswith("REX Filed")
+    )
 
     # Get distinct sectors for filter dropdown
     sectors = db.execute(
@@ -88,16 +118,16 @@ def screener_rankings(
 
     return templates.TemplateResponse("screener_rankings.html", {
         "request": request,
-        "results": results,
-        "total": total,
-        "page": page,
-        "pages": pages,
+        "all_opportunities": all_opportunities,
+        "filed_only": filed_only,
+        "total_screened": total_screened,
+        "launched_count": launched_count,
+        "filed_count": filed_count,
         "q": q,
         "sector": sector,
-        "qualified": qualified,
         "sectors": sectors,
         "upload": latest_upload,
-        "tab": "rankings",
+        "tab": "opportunities",
     })
 
 
@@ -314,9 +344,8 @@ def screener_report_download(
             "ticker": r.ticker,
             "sector": r.sector,
             "composite_score": r.composite_score,
-            "predicted_aum": r.predicted_aum,
             "mkt_cap": r.mkt_cap,
-            "call_oi_pctl": r.call_oi_pctl,
+            "total_oi_pctl": r.total_oi_pctl,
             "passes_filters": r.passes_filters,
             "filing_status": r.filing_status,
             "competitive_density": r.competitive_density,
@@ -326,39 +355,9 @@ def screener_report_download(
         for r in results
     ]
 
-    # Get REX fund data
-    rex_funds = []
-    try:
-        from screener.data_loader import load_etp_data
-        import pandas as pd
-        etp_df = load_etp_data()
-        rex_lev = etp_df[
-            (etp_df.get("is_rex") == True) & (etp_df.get("uses_leverage") == True)
-        ]
-        underlier_col = "q_category_attributes.map_li_underlier"
-        for _, row in rex_lev.iterrows():
-            rex_funds.append({
-                "ticker": row.get("ticker", ""),
-                "underlier": str(row.get(underlier_col, ""))[:12],
-                "aum": float(pd.to_numeric(row.get("t_w4.aum", 0), errors="coerce") or 0),
-                "flow_1m": float(pd.to_numeric(row.get("t_w4.fund_flow_1month", 0), errors="coerce") or 0),
-                "flow_3m": float(pd.to_numeric(row.get("t_w4.fund_flow_3month", 0), errors="coerce") or 0),
-                "flow_ytd": float(pd.to_numeric(row.get("t_w4.fund_flow_ytd", 0), errors="coerce") or 0),
-                "return_ytd": float(pd.to_numeric(row.get("t_w3.total_return_ytd", 0), errors="coerce") or 0),
-            })
-    except Exception as e:
-        log.warning("Could not load REX fund data for report: %s", e)
-
-    model_info = {
-        "model_type": latest_upload.model_type,
-        "r_squared": latest_upload.model_r_squared,
-    }
-
-    from screener.report_generator import generate_executive_report
-    pdf_bytes = generate_executive_report(
+    from screener.report_generator import generate_rankings_report
+    pdf_bytes = generate_rankings_report(
         results=result_dicts,
-        rex_funds=rex_funds if rex_funds else None,
-        model_info=model_info,
         data_date=latest_upload.uploaded_at.strftime("%B %d, %Y"),
     )
 

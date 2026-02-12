@@ -44,6 +44,9 @@ def compute_competitive_density(etp_df: pd.DataFrame) -> pd.DataFrame:
     aum_col = "t_w4.aum"
     lev["_aum"] = pd.to_numeric(lev.get(aum_col, 0), errors="coerce").fillna(0)
 
+    # Prepare is_rex flag
+    is_rex_col = lev.get("is_rex", pd.Series(False, index=lev.index)).fillna(False)
+
     results = []
     for underlier, group in lev.groupby(UNDERLIER_COL):
         n = len(group)
@@ -52,6 +55,13 @@ def compute_competitive_density(etp_df: pd.DataFrame) -> pd.DataFrame:
         leader_aum = leader["_aum"]
         leader_share = leader_aum / total_aum if total_aum > 0 else 0
 
+        # REX vs competitor split
+        rex_mask = is_rex_col.loc[group.index] == True
+        rex_count = int(rex_mask.sum())
+        comp_count = n - rex_count
+        rex_aum = group.loc[rex_mask, "_aum"].sum() if rex_mask.any() else 0
+        comp_aum = total_aum - rex_aum
+
         # Herfindahl-Hirschman Index
         if total_aum > 0:
             shares = group["_aum"] / total_aum
@@ -59,12 +69,23 @@ def compute_competitive_density(etp_df: pd.DataFrame) -> pd.DataFrame:
         else:
             hhi = 1.0
 
-        # Categorize
-        if n == 0:
+        # Oldest product age (for competitive penalty)
+        oldest_days = None
+        if "inception_date" in group.columns:
+            dates = pd.to_datetime(group["inception_date"], errors="coerce")
+            valid = dates.dropna()
+            if not valid.empty:
+                oldest = valid.min()
+                oldest_days = (pd.Timestamp.now() - oldest).days
+
+        # Categorize (based on competitor count, not REX count)
+        if comp_count == 0 and rex_count == 0:
             cat = DENSITY_UNCONTESTED
-        elif n <= 2 and total_aum < 500:
+        elif comp_count == 0:
+            cat = DENSITY_UNCONTESTED  # Only REX products = we own this
+        elif comp_count <= 2 and comp_aum < 500:
             cat = DENSITY_EARLY
-        elif n <= 4:
+        elif comp_count <= 4:
             cat = DENSITY_COMPETITIVE
         else:
             cat = DENSITY_CROWDED
@@ -73,10 +94,17 @@ def compute_competitive_density(etp_df: pd.DataFrame) -> pd.DataFrame:
             "underlier": underlier,
             "product_count": n,
             "total_aum": round(total_aum, 2),
+            "rex_product_count": rex_count,
+            "competitor_product_count": comp_count,
+            "rex_aum": round(rex_aum, 2),
+            "competitor_aum": round(comp_aum, 2),
+            "is_rex_active": rex_count > 0,
             "leader_ticker": leader.get("ticker", ""),
             "leader_aum": round(leader_aum, 2),
             "leader_share": round(leader_share, 3),
+            "leader_is_rex": bool(is_rex_col.loc[leader.name]) if leader.name in is_rex_col.index else False,
             "hhi": round(hhi, 3),
+            "oldest_product_days": oldest_days,
             "density_category": cat,
         })
 
@@ -250,3 +278,83 @@ def get_products_for_underlier(etp_df: pd.DataFrame, underlier: str) -> pd.DataF
     lev = _leveraged_etps(etp_df)
     mask = lev[UNDERLIER_COL] == underlier
     return lev[mask].copy()
+
+
+def compute_market_feedback(etp_df: pd.DataFrame, underlier: str) -> dict:
+    """Assess market feedback for a specific underlier based on existing product performance.
+
+    Returns dict with:
+        verdict: VALIDATED / MIXED / REJECTED / NO_PRODUCTS
+        product_count, total_aum, flow_direction, aum_trend, details (list of product dicts)
+    """
+    products = get_products_for_underlier(etp_df, underlier)
+
+    if products.empty:
+        return {
+            "verdict": "NO_PRODUCTS",
+            "product_count": 0,
+            "total_aum": 0,
+            "flow_direction": None,
+            "aum_trend": None,
+            "details": [],
+        }
+
+    aum_col = "t_w4.aum"
+    flow_1m_col = "t_w4.fund_flow_1month"
+    flow_3m_col = "t_w4.fund_flow_3month"
+
+    products["_aum"] = pd.to_numeric(products.get(aum_col, 0), errors="coerce").fillna(0)
+    products["_flow_1m"] = pd.to_numeric(products.get(flow_1m_col, 0), errors="coerce").fillna(0)
+    products["_flow_3m"] = pd.to_numeric(products.get(flow_3m_col, 0), errors="coerce").fillna(0)
+
+    total_aum = products["_aum"].sum()
+    total_flow_1m = products["_flow_1m"].sum()
+    total_flow_3m = products["_flow_3m"].sum()
+
+    # Flow direction
+    flow_dir = "Inflow" if total_flow_3m > 0 else "Outflow"
+
+    # AUM trend: compare 3-month flow to current AUM
+    aum_trend = None
+    if total_aum > 0:
+        flow_pct = total_flow_3m / total_aum * 100
+        if flow_pct > 10:
+            aum_trend = "Growing"
+        elif flow_pct < -10:
+            aum_trend = "Declining"
+        else:
+            aum_trend = "Stable"
+
+    # Verdict
+    if total_aum >= 100:
+        verdict = "VALIDATED"  # $100M+ = market wants this
+    elif total_aum >= 20 and total_flow_3m > 0:
+        verdict = "VALIDATED"  # Growing with decent AUM
+    elif total_aum < 10 and total_flow_3m <= 0:
+        verdict = "REJECTED"  # Tiny and shrinking
+    else:
+        verdict = "MIXED"
+
+    # Build product details
+    is_rex_col = products.get("is_rex", pd.Series(False, index=products.index)).fillna(False)
+    details = []
+    for _, row in products.sort_values("_aum", ascending=False).iterrows():
+        details.append({
+            "ticker": row.get("ticker", ""),
+            "fund_name": row.get("fund_name", ""),
+            "issuer": row.get("issuer", ""),
+            "is_rex": bool(is_rex_col.loc[row.name]),
+            "aum": round(float(row["_aum"]), 1),
+            "flow_1m": round(float(row["_flow_1m"]), 1),
+            "direction": row.get(DIRECTION_COL, ""),
+            "leverage": row.get(LEVERAGE_COL, ""),
+        })
+
+    return {
+        "verdict": verdict,
+        "product_count": len(products),
+        "total_aum": round(total_aum, 1),
+        "flow_direction": flow_dir,
+        "aum_trend": aum_trend,
+        "details": details,
+    }

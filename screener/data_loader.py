@@ -33,6 +33,10 @@ def load_stock_data(path: Path | str | None = None) -> pd.DataFrame:
     df = pd.read_excel(p, sheet_name="stock_data", engine="openpyxl")
     log.info("stock_data loaded: %d rows x %d cols", len(df), len(df.columns))
 
+    # Drop rows with missing tickers (trailing empty rows in Excel)
+    if "Ticker" in df.columns:
+        df = df.dropna(subset=["Ticker"]).reset_index(drop=True)
+
     # Normalize ticker: keep original as ticker_raw, strip " US" for matching
     if "Ticker" in df.columns:
         df["ticker_raw"] = df["Ticker"]

@@ -10,7 +10,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from screener.config import SCORING_WEIGHTS, INVERTED_FACTORS, THRESHOLD_FILTERS
+from screener.config import SCORING_WEIGHTS, INVERTED_FACTORS, THRESHOLD_FILTERS, COMPETITIVE_PENALTY
 
 log = logging.getLogger(__name__)
 
@@ -130,5 +130,72 @@ def apply_threshold_filters(
     df["passes_filters"] = passes
     n_pass = passes.sum()
     log.info("Threshold filters: %d / %d pass (%.1f%%)", n_pass, len(df), 100 * n_pass / max(len(df), 1))
+
+    return df
+
+
+def apply_competitive_penalty(
+    scored_df: pd.DataFrame,
+    density_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Penalize stocks where existing leveraged products have low AUM (market rejection).
+
+    Modifies composite_score and adds 'market_signal' column:
+      - "Market Rejected" (-25 pts): total AUM < $10M, oldest product > 6 months
+      - "Low Traction" (-15 pts): total AUM < $50M, oldest product > 12 months
+      - "REX Active": REX already has a product (no penalty, just label)
+      - None: no existing products or passes thresholds
+    """
+    df = scored_df.copy()
+    df["market_signal"] = None
+
+    if density_df.empty:
+        return df
+
+    ticker_col = "ticker_clean" if "ticker_clean" in df.columns else "Ticker"
+
+    # Build lookup from density data: underlier (clean) -> density row
+    density_lookup = {}
+    for _, row in density_df.iterrows():
+        underlier = str(row["underlier"]).replace(" US", "").replace(" Curncy", "").upper()
+        density_lookup[underlier] = row
+
+    rejected_aum = COMPETITIVE_PENALTY["rejected_max_aum"]
+    rejected_age = COMPETITIVE_PENALTY["rejected_min_age_days"]
+    rejected_pen = COMPETITIVE_PENALTY["rejected_penalty"]
+    low_aum = COMPETITIVE_PENALTY["low_traction_max_aum"]
+    low_age = COMPETITIVE_PENALTY["low_traction_min_age_days"]
+    low_pen = COMPETITIVE_PENALTY["low_traction_penalty"]
+
+    penalties_applied = 0
+    for idx, row in df.iterrows():
+        ticker = str(row.get(ticker_col, "")).upper()
+        d = density_lookup.get(ticker)
+        if d is None:
+            continue
+
+        is_rex_active = d.get("is_rex_active", False)
+        total_aum = d.get("total_aum", 0)
+        oldest_days = d.get("oldest_product_days")
+
+        if is_rex_active:
+            df.at[idx, "market_signal"] = "REX Active"
+
+        if oldest_days is None:
+            continue
+
+        if total_aum < rejected_aum and oldest_days >= rejected_age:
+            df.at[idx, "composite_score"] = max(0, df.at[idx, "composite_score"] + rejected_pen)
+            df.at[idx, "market_signal"] = "Market Rejected"
+            penalties_applied += 1
+        elif total_aum < low_aum and oldest_days >= low_age:
+            df.at[idx, "composite_score"] = max(0, df.at[idx, "composite_score"] + low_pen)
+            df.at[idx, "market_signal"] = "Low Traction"
+            penalties_applied += 1
+
+    if penalties_applied:
+        df = df.sort_values("composite_score", ascending=False).reset_index(drop=True)
+        df["rank"] = range(1, len(df) + 1)
+        log.info("Competitive penalty: %d stocks penalized", penalties_applied)
 
     return df

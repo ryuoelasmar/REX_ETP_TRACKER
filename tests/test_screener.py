@@ -25,8 +25,8 @@ def test_stock_data_has_required_columns():
     df = load_stock_data()
 
     required = ["Ticker", "Mkt Cap", "Total OI", "Turnover / Traded Value",
-                "Twitter Positive Sentiment Count", "Short Interest Ratio",
-                "Last Price", "GICS Sector", "ticker_clean"]
+                "Volatility 30D", "Short Interest Ratio",
+                "GICS Sector", "ticker_clean"]
     for col in required:
         assert col in df.columns, f"Missing column: {col}"
 
@@ -90,30 +90,27 @@ def test_threshold_filters():
     assert 0 < n_pass < len(filtered)  # Some pass, some don't
 
 
-# ---------------------------------------------------------------------------
-# Regression Tests
-# ---------------------------------------------------------------------------
-
-def test_regression_training():
-    """Test that regression model trains and produces predictions."""
+def test_competitive_penalty():
+    """Test that competitive penalty modifies scores and adds market_signal."""
     from screener.data_loader import load_stock_data, load_etp_data
-    from screener.regression import build_training_set, train_model, predict_aum
+    from screener.scoring import compute_percentile_scores, apply_competitive_penalty
+    from screener.competitive import compute_competitive_density
 
     stock = load_stock_data()
     etp = load_etp_data()
 
-    training = build_training_set(etp, stock)
-    assert training is not None
-    assert len(training) >= 10
+    scored = compute_percentile_scores(stock)
+    density = compute_competitive_density(etp)
+    penalized = apply_competitive_penalty(scored, density)
 
-    model = train_model(training)
-    assert model is not None
-    assert model.r_squared >= 0
-    assert model.model_type in ("OLS", "GradientBoosting")
+    assert "market_signal" in penalized.columns
+    # Some stocks should have penalties applied
+    rejected = penalized[penalized["market_signal"] == "Market Rejected"]
+    low_traction = penalized[penalized["market_signal"] == "Low Traction"]
+    rex_active = penalized[penalized["market_signal"] == "REX Active"]
 
-    predicted = predict_aum(model, stock.head(10))
-    assert "predicted_aum" in predicted.columns
-    assert all(predicted["predicted_aum"] >= 0)
+    # REX has products on many underliers, so at least some should be marked
+    assert len(rex_active) > 0 or len(rejected) > 0 or len(low_traction) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +118,7 @@ def test_regression_training():
 # ---------------------------------------------------------------------------
 
 def test_competitive_density():
-    """Test that known crowded underliers are categorized correctly."""
+    """Test density with REX vs competitor split."""
     from screener.data_loader import load_etp_data
     from screener.competitive import compute_competitive_density
 
@@ -130,15 +127,50 @@ def test_competitive_density():
 
     assert len(density) > 100  # At least 100 unique underliers
 
-    # TSLA and NVDA should be "Crowded"
+    # New columns for REX/competitor split
+    assert "rex_product_count" in density.columns
+    assert "competitor_product_count" in density.columns
+    assert "rex_aum" in density.columns
+    assert "competitor_aum" in density.columns
+    assert "is_rex_active" in density.columns
+
+    # TSLA should have REX products
     tsla = density[density["underlier"] == "TSLA US"]
     assert len(tsla) == 1
-    assert tsla.iloc[0]["density_category"] == "Crowded"
     assert tsla.iloc[0]["product_count"] >= 5
+    assert tsla.iloc[0]["is_rex_active"] == True
 
-    nvda = density[density["underlier"] == "NVDA US"]
-    assert len(nvda) == 1
-    assert nvda.iloc[0]["density_category"] == "Crowded"
+
+def test_competitive_rex_split():
+    """Test that REX products are correctly separated from competitors."""
+    from screener.data_loader import load_etp_data
+    from screener.competitive import compute_competitive_density
+
+    etp = load_etp_data()
+    density = compute_competitive_density(etp)
+
+    # For any underlier, rex_count + competitor_count should equal product_count
+    for _, row in density.iterrows():
+        assert row["rex_product_count"] + row["competitor_product_count"] == row["product_count"]
+
+
+def test_market_feedback():
+    """Test market feedback assessment for known underliers."""
+    from screener.data_loader import load_etp_data
+    from screener.competitive import compute_market_feedback
+
+    etp = load_etp_data()
+
+    # TSLA has massive AUM products -> should be VALIDATED
+    tsla = compute_market_feedback(etp, "TSLA US")
+    assert tsla["verdict"] in ("VALIDATED", "MIXED")
+    assert tsla["product_count"] > 0
+    assert tsla["total_aum"] > 0
+
+    # An underlier with no products
+    fake = compute_market_feedback(etp, "ZZZZZ US")
+    assert fake["verdict"] == "NO_PRODUCTS"
+    assert fake["product_count"] == 0
 
 
 def test_fund_flows():
@@ -153,6 +185,46 @@ def test_fund_flows():
     assert "underlier" in flows.columns
     assert "flow_1m" in flows.columns
     assert "flow_direction" in flows.columns
+
+
+# ---------------------------------------------------------------------------
+# Candidate Evaluation Tests
+# ---------------------------------------------------------------------------
+
+def test_candidate_evaluation():
+    """Test candidate evaluator with known tickers."""
+    from screener.candidate_evaluator import evaluate_candidates
+
+    # SCCO is in stock_data, ZZFAKE is not
+    results = evaluate_candidates(["SCCO", "ZZFAKE"])
+
+    assert len(results) == 2
+
+    scco = results[0]
+    assert scco["ticker_clean"] == "SCCO"
+    assert scco["data_coverage"] == "full"
+    assert scco["demand"]["verdict"] in ("HIGH", "MEDIUM", "LOW")
+    assert scco["competition"]["verdict"] in ("FIRST_MOVER", "EARLY_STAGE", "COMPETITIVE", "CROWDED")
+    assert scco["market_feedback"]["verdict"] in ("VALIDATED", "MIXED", "REJECTED", "NO_PRODUCTS")
+    assert scco["filing"]["verdict"] in ("ALREADY_TRADING", "FILED", "NOT_FILED")
+    assert scco["verdict"] in ("RECOMMEND", "NEUTRAL", "CAUTION")
+
+    fake = results[1]
+    assert fake["ticker_clean"] == "ZZFAKE"
+    assert fake["data_coverage"] == "none"
+    assert fake["demand"]["verdict"] == "DATA_UNAVAILABLE"
+
+
+def test_candidate_evaluation_rex_underlier():
+    """Test that evaluation correctly identifies REX-filed underliers."""
+    from screener.candidate_evaluator import evaluate_candidates
+
+    # TSLA and NVDA have REX products
+    results = evaluate_candidates(["TSLA", "NVDA"])
+
+    for r in results:
+        assert r["filing"]["verdict"] in ("ALREADY_TRADING", "FILED")
+        assert r["competition"]["rex_count"] > 0
 
 
 # ---------------------------------------------------------------------------
@@ -185,25 +257,56 @@ def test_filing_match():
 # PDF Report Tests
 # ---------------------------------------------------------------------------
 
-def test_pdf_generation():
-    """Test that PDF report generates valid bytes."""
-    from screener.report_generator import generate_executive_report
+def test_candidate_pdf_generation():
+    """Test that candidate evaluation PDF generates valid bytes."""
+    from screener.report_generator import generate_candidate_report
+
+    candidates = [
+        {
+            "ticker": "SCCO US", "ticker_clean": "SCCO",
+            "company_name": "Materials", "data_coverage": "full",
+            "demand": {"verdict": "HIGH", "weighted_pctl": 85.0, "metrics": {
+                "Mkt Cap": {"value": 170598}, "Total OI": {"value": 245000, "percentile": 92},
+                "Turnover / Traded Value": {"value": 1200000000, "percentile": 85},
+                "Volatility 30D": {"value": 38.0}, "Short Interest Ratio": {"value": 2.1},
+            }},
+            "competition": {"verdict": "FIRST_MOVER", "product_count": 0, "competitor_count": 0,
+                           "rex_count": 0, "total_aum": 0, "competitor_aum": 0, "rex_aum": 0,
+                           "leader": None, "leader_share": 0, "leader_is_rex": False},
+            "market_feedback": {"verdict": "NO_PRODUCTS", "product_count": 0, "total_aum": 0,
+                               "flow_direction": None, "aum_trend": None, "details": []},
+            "filing": {"verdict": "NOT_FILED", "rex_ticker": None, "status": None,
+                      "effective_date": None, "latest_form": None},
+            "verdict": "RECOMMEND",
+            "reason": "Strong demand signal, no competitors. First-mover opportunity.",
+        },
+    ]
+
+    pdf = generate_candidate_report(candidates)
+    assert isinstance(pdf, bytes)
+    assert len(pdf) > 1000
+    assert pdf[:5] == b"%PDF-"
+
+
+def test_rankings_pdf_generation():
+    """Test that rankings PDF generates valid bytes."""
+    from screener.report_generator import generate_rankings_report
 
     results = [
         {"ticker": "NVDA US", "sector": "Technology", "composite_score": 89.8,
-         "predicted_aum": 1340, "mkt_cap": 4491612, "call_oi_pctl": 99.5,
-         "passes_filters": True, "filing_status": "REX Filed - Pending",
-         "competitive_density": "Crowded", "competitor_count": 10, "total_competitor_aum": 5376},
+         "mkt_cap": 4491612, "total_oi_pctl": 99.5, "market_signal": "REX Active",
+         "passes_filters": True, "filing_status": "REX Filed - Effective",
+         "competitive_density": "Crowded"},
         {"ticker": "AMD US", "sector": "Technology", "composite_score": 89.9,
-         "predicted_aum": 716, "mkt_cap": 413083, "call_oi_pctl": 98.2,
+         "mkt_cap": 413083, "total_oi_pctl": 98.2, "market_signal": None,
          "passes_filters": True, "filing_status": "Not Filed",
-         "competitive_density": "Crowded", "competitor_count": 5, "total_competitor_aum": 721},
+         "competitive_density": "Crowded"},
     ]
 
-    pdf = generate_executive_report(results)
+    pdf = generate_rankings_report(results)
     assert isinstance(pdf, bytes)
     assert len(pdf) > 1000
-    assert pdf[:5] == b"%PDF-"  # Valid PDF header
+    assert pdf[:5] == b"%PDF-"
 
 
 # ---------------------------------------------------------------------------

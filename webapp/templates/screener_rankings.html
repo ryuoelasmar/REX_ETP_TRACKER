@@ -3,12 +3,13 @@
 
 {% block content %}
 <div class="header">
-  <h1>ETF Launch Screener</h1>
+  <h1>Launch Screener</h1>
   <div class="date">
     {% if upload %}
       Data uploaded {{ upload.uploaded_at.strftime('%b %d, %Y %H:%M') }} |
-      {{ upload.stock_rows | default(0) }} stocks scored |
-      Model: {{ upload.model_type or 'N/A' }} (R&sup2;={{ "%.2f"|format(upload.model_r_squared or 0) }})
+      {{ total_screened | default(0) }} stocks screened |
+      {{ launched_count | default(0) }} already launched (excluded) |
+      {{ filed_count | default(0) }} have REX filings
     {% else %}
       No data loaded. Upload Bloomberg data from the <a href="/admin/">Admin panel</a>.
     {% endif %}
@@ -17,11 +18,11 @@
 
 <!-- Sub-navigation -->
 <div style="display:flex; gap:4px; margin-bottom:20px; border-bottom:2px solid var(--navy); padding-bottom:8px;">
-  <a href="/screener/" class="pill{% if tab == 'rankings' %} active{% endif %}">Rankings</a>
+  <a href="/screener/" class="pill{% if tab == 'opportunities' %} active{% endif %}">Screener</a>
   <a href="/screener/rex-funds" class="pill{% if tab == 'rex' %} active{% endif %}">REX Funds</a>
 </div>
 
-{% if results %}
+{% if all_opportunities or filed_only %}
 <!-- Filter Bar -->
 <div class="filter-bar">
   <form method="get" action="/screener/" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; width:100%;">
@@ -32,38 +33,40 @@
       <option value="{{ s }}" {% if sector == s %}selected{% endif %}>{{ s }}</option>
       {% endfor %}
     </select>
-    <label style="font-size:13px; display:flex; align-items:center; gap:4px;">
-      <input type="checkbox" name="qualified" value="1" {% if qualified == '1' %}checked{% endif %}> Qualified Only
-    </label>
     <button type="submit" class="btn btn-primary btn-sm">Filter</button>
-    {% if q or sector or qualified %}
+    {% if q or sector %}
     <a href="/screener/" style="font-size:12px; color:var(--gray);">Clear</a>
     {% endif %}
-    <span class="count">{{ total }} results</span>
   </form>
 </div>
 
-<!-- Results Table -->
+<!-- ==================== TABLE 1: TOP 50 ALL OPPORTUNITIES ==================== -->
+<div class="section-header">
+  <h2>Top 50 - All Opportunities</h2>
+  <span class="badge">{{ all_opportunities | length }} shown</span>
+</div>
+<p style="font-size:12px; color:var(--gray); margin-bottom:12px;">
+  Top opportunities by composite score. Excludes underliers where REX has already launched products.
+  Green rows indicate REX has filed for this underlier.
+</p>
+
 <div style="overflow-x:auto;">
-<table id="screenerTable">
+<table id="allOpportunitiesTable">
   <thead>
     <tr>
-      <th style="width:50px;">#</th>
-      <th onclick="sortTable('screenerTable',1)">Ticker</th>
-      <th onclick="sortTable('screenerTable',2)">Sector</th>
-      <th onclick="sortTable('screenerTable',3)" style="text-align:right;">Score</th>
-      <th onclick="sortTable('screenerTable',4)" style="text-align:right;">Predicted AUM</th>
-      <th onclick="sortTable('screenerTable',5)" style="text-align:right;">Mkt Cap ($M)</th>
-      <th onclick="sortTable('screenerTable',6)" style="text-align:right;">Call OI Pctl</th>
-      <th>Density</th>
-      <th>Filing Status</th>
-      <th style="width:50px;">Pass</th>
+      <th style="width:40px;">#</th>
+      <th onclick="sortTable('allOpportunitiesTable',1)">Ticker</th>
+      <th onclick="sortTable('allOpportunitiesTable',2)">Sector</th>
+      <th onclick="sortTable('allOpportunitiesTable',3)" style="text-align:right;">Score</th>
+      <th onclick="sortTable('allOpportunitiesTable',4)" style="text-align:right;">Mkt Cap ($M)</th>
+      <th onclick="sortTable('allOpportunitiesTable',5)" style="text-align:right;">OI %</th>
+      <th>REX Filing</th>
     </tr>
   </thead>
   <tbody>
-    {% for r in results %}
-    <tr data-name="{{ r.ticker }}" data-status="{{ r.filing_status }}">
-      <td style="color:var(--gray);">{{ (page - 1) * 50 + loop.index }}</td>
+    {% for r in all_opportunities %}
+    <tr {% if r.filing_status and r.filing_status.startswith('REX Filed') %}style="background:#e8f5e9;"{% endif %}>
+      <td style="color:var(--gray); font-size:12px;">{{ loop.index }}</td>
       <td class="ticker-col">
         <a href="/screener/stock/{{ r.ticker }}">{{ r.ticker }}</a>
       </td>
@@ -83,43 +86,22 @@
         </div>
       </td>
       <td style="text-align:right; font-size:12px;">
-        {% if r.predicted_aum %}${{ "{:,.0f}".format(r.predicted_aum) }}M{% else %}-{% endif %}
-      </td>
-      <td style="text-align:right; font-size:12px;">
         {% if r.mkt_cap %}{{ "{:,.0f}".format(r.mkt_cap) }}{% else %}-{% endif %}
       </td>
       <td style="text-align:right; font-size:12px;">
-        {% if r.call_oi_pctl %}{{ "%.0f"|format(r.call_oi_pctl) }}{% else %}-{% endif %}
-      </td>
-      <td>
-        {% if r.competitive_density %}
-        <span style="font-size:11px; padding:2px 8px; border-radius:10px;
-          {% if r.competitive_density == 'Crowded' %}background:#fce4ec; color:var(--red);
-          {% elif r.competitive_density == 'Competitive' %}background:#fff3e0; color:var(--orange);
-          {% elif r.competitive_density == 'Early Stage' %}background:#e3f2fd; color:var(--blue);
-          {% else %}background:#e8f5e9; color:var(--green);{% endif %}">
-          {{ r.competitive_density }}{% if r.competitor_count %} ({{ r.competitor_count }}){% endif %}
-        </span>
-        {% else %}-{% endif %}
+        {% if r.total_oi_pctl %}{{ "%.0f"|format(r.total_oi_pctl) }}{% else %}-{% endif %}
       </td>
       <td>
         {% if r.filing_status and r.filing_status != 'Not Filed' %}
-        <span style="font-size:11px; padding:2px 8px; border-radius:10px;
+        <span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600;
           {% if 'Effective' in r.filing_status %}background:#e8f5e9; color:var(--green);
           {% elif 'Pending' in r.filing_status %}background:#e3f2fd; color:var(--blue);
-          {% elif 'Competitor' in r.filing_status %}background:#fff3e0; color:var(--orange);
+          {% elif 'Delayed' in r.filing_status %}background:#fff3e0; color:var(--orange);
           {% else %}background:var(--light); color:var(--gray);{% endif %}">
           {{ r.filing_status }}
         </span>
         {% else %}
         <span style="font-size:11px; color:var(--gray);">-</span>
-        {% endif %}
-      </td>
-      <td style="text-align:center;">
-        {% if r.passes_filters %}
-        <span style="color:var(--green); font-weight:bold;">Y</span>
-        {% else %}
-        <span style="color:var(--gray);">N</span>
         {% endif %}
       </td>
     </tr>
@@ -128,16 +110,71 @@
 </table>
 </div>
 
-<!-- Pagination -->
-{% if pages > 1 %}
-<div style="display:flex; justify-content:center; gap:8px; margin-top:20px;">
-  {% if page > 1 %}
-  <a href="/screener/?page={{ page - 1 }}&q={{ q }}&sector={{ sector }}&qualified={{ qualified }}" class="btn btn-sm">&laquo; Prev</a>
-  {% endif %}
-  <span style="padding:6px 12px; font-size:13px; color:var(--gray);">Page {{ page }} of {{ pages }}</span>
-  {% if page < pages %}
-  <a href="/screener/?page={{ page + 1 }}&q={{ q }}&sector={{ sector }}&qualified={{ qualified }}" class="btn btn-sm">Next &raquo;</a>
-  {% endif %}
+<!-- ==================== TABLE 2: REX FILED - PENDING LAUNCH ==================== -->
+{% if filed_only %}
+<div class="section-header" style="margin-top:40px;">
+  <h2>REX Filed - Pending Launch</h2>
+  <span class="badge">{{ filed_only | length }} of {{ filed_count }} filed</span>
+</div>
+<p style="font-size:12px; color:var(--gray); margin-bottom:12px;">
+  Only underliers where REX has filed (485APOS/485BPOS) but NOT yet launched.
+  These are the launch candidates with active filings, ranked by composite score.
+</p>
+
+<div style="overflow-x:auto;">
+<table id="filedOnlyTable">
+  <thead>
+    <tr>
+      <th style="width:40px;">#</th>
+      <th onclick="sortTable('filedOnlyTable',1)">Ticker</th>
+      <th onclick="sortTable('filedOnlyTable',2)">Sector</th>
+      <th onclick="sortTable('filedOnlyTable',3)" style="text-align:right;">Score</th>
+      <th onclick="sortTable('filedOnlyTable',4)" style="text-align:right;">Mkt Cap ($M)</th>
+      <th onclick="sortTable('filedOnlyTable',5)" style="text-align:right;">OI %</th>
+      <th>REX Filing</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in filed_only %}
+    <tr style="background:#e8f5e9;">
+      <td style="color:var(--gray); font-size:12px;">{{ loop.index }}</td>
+      <td class="ticker-col">
+        <a href="/screener/stock/{{ r.ticker }}">{{ r.ticker }}</a>
+      </td>
+      <td style="font-size:12px;">{{ r.sector or '-' }}</td>
+      <td style="text-align:right;">
+        <span style="display:inline-block; width:40px; text-align:right; font-weight:600;
+          {% if r.composite_score >= 70 %}color:var(--green);
+          {% elif r.composite_score >= 40 %}color:var(--orange);
+          {% else %}color:var(--gray);{% endif %}">
+          {{ "%.1f"|format(r.composite_score) }}
+        </span>
+        <div style="display:inline-block; width:60px; height:6px; background:#eee; border-radius:3px; vertical-align:middle; margin-left:4px;">
+          <div style="width:{{ r.composite_score }}%; height:100%; border-radius:3px;
+            {% if r.composite_score >= 70 %}background:var(--green);
+            {% elif r.composite_score >= 40 %}background:var(--orange);
+            {% else %}background:var(--gray);{% endif %}"></div>
+        </div>
+      </td>
+      <td style="text-align:right; font-size:12px;">
+        {% if r.mkt_cap %}{{ "{:,.0f}".format(r.mkt_cap) }}{% else %}-{% endif %}
+      </td>
+      <td style="text-align:right; font-size:12px;">
+        {% if r.total_oi_pctl %}{{ "%.0f"|format(r.total_oi_pctl) }}{% else %}-{% endif %}
+      </td>
+      <td>
+        <span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600;
+          {% if 'Effective' in r.filing_status %}background:#e8f5e9; color:var(--green);
+          {% elif 'Pending' in r.filing_status %}background:#e3f2fd; color:var(--blue);
+          {% elif 'Delayed' in r.filing_status %}background:#fff3e0; color:var(--orange);
+          {% else %}background:var(--light); color:var(--gray);{% endif %}">
+          {{ r.filing_status }}
+        </span>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 </div>
 {% endif %}
 

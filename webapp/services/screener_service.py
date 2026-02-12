@@ -42,8 +42,7 @@ def run_screener_pipeline(upload_id: int) -> None:
             return
 
         from screener.data_loader import load_all
-        from screener.scoring import compute_percentile_scores, derive_rex_benchmarks, apply_threshold_filters
-        from screener.regression import build_training_set, train_model, predict_aum
+        from screener.scoring import compute_percentile_scores, derive_rex_benchmarks, apply_threshold_filters, apply_competitive_penalty
         from screener.competitive import compute_competitive_density
         from screener.filing_match import match_filings
 
@@ -64,32 +63,22 @@ def run_screener_pipeline(upload_id: int) -> None:
         scored = compute_percentile_scores(stock_df)
         scored = apply_threshold_filters(scored, benchmarks)
 
-        # 3. Regression
-        log.info("Screener: training regression model...")
-        training = build_training_set(etp_df, stock_df)
-        model_result = None
-        if training is not None and len(training) >= 10:
-            model_result = train_model(training)
-            if model_result:
-                scored = predict_aum(model_result, scored)
-                upload.model_type = model_result.model_type
-                upload.model_r_squared = model_result.r_squared
-
-        # 4. Competitive density
+        # 3. Competitive density + penalty
         log.info("Screener: computing competitive density...")
         density = compute_competitive_density(etp_df)
+        scored = apply_competitive_penalty(scored, density)
+
         density_lookup = {}
         if not density.empty:
             for _, row in density.iterrows():
-                # Map underlier (with " US") to clean ticker
                 underlier = str(row["underlier"]).replace(" US", "").replace(" Curncy", "")
                 density_lookup[underlier] = row
 
-        # 5. Filing match (uses etp_data underlier mapping + pipeline DB)
+        # 4. Filing match (uses etp_data underlier mapping + pipeline DB)
         log.info("Screener: matching filings...")
         scored = match_filings(scored, etp_df)
 
-        # 6. Write to DB (atomic: delete old, insert new)
+        # 5. Write to DB (atomic: delete old, insert new)
         log.info("Screener: writing %d results to DB...", len(scored))
         db.execute(delete(ScreenerResult).where(ScreenerResult.upload_id != upload_id))
 
@@ -104,9 +93,6 @@ def run_screener_pipeline(upload_id: int) -> None:
                 company_name=None,
                 sector=str(row.get("GICS Sector", "")) if row.get("GICS Sector") else None,
                 composite_score=float(row.get("composite_score", 0)),
-                predicted_aum=float(row["predicted_aum"]) if "predicted_aum" in row and row.get("predicted_aum") else None,
-                predicted_aum_low=float(row["predicted_aum_low"]) if "predicted_aum_low" in row and row.get("predicted_aum_low") else None,
-                predicted_aum_high=float(row["predicted_aum_high"]) if "predicted_aum_high" in row and row.get("predicted_aum_high") else None,
                 mkt_cap=float(row.get("Mkt Cap", 0)) if row.get("Mkt Cap") else None,
                 call_oi_pctl=float(row.get("Total OI_pctl", 0)) if row.get("Total OI_pctl") else None,
                 total_oi_pctl=float(row.get("Total OI_pctl", 0)) if row.get("Total OI_pctl") else None,
