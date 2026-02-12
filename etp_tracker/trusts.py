@@ -29,6 +29,11 @@ TRUST_CIKS = {
     "1547950": "Exchange Listed Funds Trust",
     "1579881": "Calamos ETF Trust",
     "826732": "Calamos Investment Trust",
+    # Added 2026-02-12 via EDGAR search for leveraged ETF issuers
+    "1782952": "Kurv ETF Trust",
+    "1722388": "Tidal Trust III",  # Battle Shares and other leveraged products
+    "1683471": "Listed Funds Trust",  # Teucrium 2x crypto products
+    "1396092": "World Funds Trust",  # T-REX 2x products
 }
 
 def get_all_ciks() -> list[str]:
