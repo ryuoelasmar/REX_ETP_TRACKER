@@ -169,3 +169,55 @@ class PipelineRun(Base):
     funds_extracted: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text)
     triggered_by: Mapped[str | None] = mapped_column(String(100))
+
+
+# --- Screener Models ---
+
+class ScreenerUpload(Base):
+    __tablename__ = "screener_uploads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    file_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    stock_rows: Mapped[int] = mapped_column(Integer, default=0)
+    etp_rows: Mapped[int] = mapped_column(Integer, default=0)
+    filing_rows: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), default="processing", nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    uploaded_by: Mapped[str | None] = mapped_column(String(100))
+    model_type: Mapped[str | None] = mapped_column(String(50))
+    model_r_squared: Mapped[float | None] = mapped_column(Float)
+
+    results: Mapped[list[ScreenerResult]] = relationship(back_populates="upload", cascade="all, delete-orphan")
+
+
+class ScreenerResult(Base):
+    __tablename__ = "screener_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    upload_id: Mapped[int] = mapped_column(Integer, ForeignKey("screener_uploads.id"), nullable=False)
+    ticker: Mapped[str] = mapped_column(String(30), nullable=False)
+    company_name: Mapped[str | None] = mapped_column(String(200))
+    sector: Mapped[str | None] = mapped_column(String(100))
+    composite_score: Mapped[float] = mapped_column(Float, nullable=False)
+    predicted_aum: Mapped[float | None] = mapped_column(Float)
+    predicted_aum_low: Mapped[float | None] = mapped_column(Float)
+    predicted_aum_high: Mapped[float | None] = mapped_column(Float)
+    mkt_cap: Mapped[float | None] = mapped_column(Float)
+    call_oi_pctl: Mapped[float | None] = mapped_column(Float)
+    total_oi_pctl: Mapped[float | None] = mapped_column(Float)
+    volume_pctl: Mapped[float | None] = mapped_column(Float)
+    passes_filters: Mapped[bool] = mapped_column(Boolean, default=False)
+    filing_status: Mapped[str | None] = mapped_column(String(100))
+    competitive_density: Mapped[str | None] = mapped_column(String(50))
+    competitor_count: Mapped[int | None] = mapped_column(Integer)
+    total_competitor_aum: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    upload: Mapped[ScreenerUpload] = relationship(back_populates="results")
+
+    __table_args__ = (
+        Index("idx_screener_upload", "upload_id"),
+        Index("idx_screener_score", "composite_score"),
+        Index("idx_screener_ticker", "ticker"),
+    )

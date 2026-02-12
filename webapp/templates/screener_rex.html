@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}REX Fund Portfolio - Launch Screener{% endblock %}
+
+{% block content %}
+<div class="header">
+  <h1>REX Fund Portfolio</h1>
+  <div class="date">
+    {% if upload %}
+      Data as of {{ upload.uploaded_at.strftime('%b %d, %Y') }}
+    {% else %}
+      No data loaded. Upload Bloomberg data from the <a href="/admin/">Admin panel</a>.
+    {% endif %}
+  </div>
+</div>
+
+<!-- Sub-navigation -->
+<div style="display:flex; gap:4px; margin-bottom:20px; border-bottom:2px solid var(--navy); padding-bottom:8px;">
+  <a href="/screener/" class="pill{% if tab == 'rankings' %} active{% endif %}">Rankings</a>
+  <a href="/screener/rex-funds" class="pill{% if tab == 'rex' %} active{% endif %}">REX Funds</a>
+</div>
+
+{% if funds_by_group %}
+<!-- KPI Row -->
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="num">${{ "{:,.0f}".format(kpis.total_aum) }}M</div>
+    <div class="label">Total REX Leveraged AUM</div>
+  </div>
+  <div class="kpi">
+    <div class="num" style="{% if kpis.net_flow_1m >= 0 %}color:var(--green);{% else %}color:var(--red);{% endif %}">
+      ${{ "{:,.0f}".format(kpis.net_flow_1m) }}M
+    </div>
+    <div class="label">Net Flows (1M)</div>
+  </div>
+  <div class="kpi">
+    <div class="num" style="color:var(--green);">{{ kpis.best or '-' }}</div>
+    <div class="label">Best Inflows{% if kpis.best_flow %} (${{ "{:,.0f}".format(kpis.best_flow) }}M){% endif %}</div>
+  </div>
+  <div class="kpi">
+    <div class="num" style="color:var(--red);">{{ kpis.worst or '-' }}</div>
+    <div class="label">Worst Outflows{% if kpis.worst_flow %} (${{ "{:,.0f}".format(kpis.worst_flow) }}M){% endif %}</div>
+  </div>
+</div>
+
+<!-- Fund Groups -->
+{% for group_name, funds in funds_by_group.items()|sort %}
+<div class="trust-block open" style="margin-bottom:12px;">
+  <div class="trust-header" onclick="toggleTrust(this)">
+    <h3>{{ group_name }} <span style="font-size:12px; color:var(--gray); font-weight:normal;">({{ funds|length }} funds)</span></h3>
+    <div class="stats">
+      Total AUM: ${{ "{:,.0f}".format(funds|sum(attribute='aum')) }}M
+    </div>
+  </div>
+  <div class="trust-body" style="display:block;">
+    <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>Fund Name</th>
+          <th>Underlier</th>
+          <th style="text-align:right;">AUM ($M)</th>
+          <th style="text-align:right;">Flow 1M</th>
+          <th style="text-align:right;">Flow 3M</th>
+          <th style="text-align:right;">Flow YTD</th>
+          <th style="text-align:right;">Return YTD</th>
+          <th style="text-align:right;">Spread</th>
+          <th style="text-align:right;">Tracking Err</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in funds %}
+        <tr>
+          <td class="ticker-col">
+            <a href="/screener/stock/{{ f.underlier }}">{{ f.ticker }}</a>
+          </td>
+          <td style="font-size:12px; max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ f.fund_name }}</td>
+          <td style="font-size:12px; font-family:monospace;">{{ f.underlier }}</td>
+          <td style="text-align:right; font-weight:600;">{{ "{:,.1f}".format(f.aum) }}</td>
+          <td style="text-align:right; {% if f.flow_1m > 0 %}color:var(--green);{% elif f.flow_1m < 0 %}color:var(--red);{% endif %}">
+            {{ "{:,.1f}".format(f.flow_1m) }}
+          </td>
+          <td style="text-align:right; {% if f.flow_3m > 0 %}color:var(--green);{% elif f.flow_3m < 0 %}color:var(--red);{% endif %}">
+            {{ "{:,.1f}".format(f.flow_3m) }}
+          </td>
+          <td style="text-align:right; {% if f.flow_ytd > 0 %}color:var(--green);{% elif f.flow_ytd < 0 %}color:var(--red);{% endif %}">
+            {{ "{:,.1f}".format(f.flow_ytd) }}
+          </td>
+          <td style="text-align:right; {% if f.return_ytd > 0 %}color:var(--green);{% elif f.return_ytd < 0 %}color:var(--red);{% endif %}">
+            {{ "%.1f"|format(f.return_ytd) }}%
+          </td>
+          <td style="text-align:right; font-size:12px;">{% if f.spread %}{{ "%.2f"|format(f.spread) }}{% else %}-{% endif %}</td>
+          <td style="text-align:right; font-size:12px;">{% if f.tracking_error %}{{ "%.2f"|format(f.tracking_error) }}{% else %}-{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{% else %}
+<div class="what-changed">
+  <h2>No REX fund data available</h2>
+  <p>Upload Bloomberg data from the <a href="/admin/">Admin panel</a> to see REX fund performance.</p>
+</div>
+{% endif %}
+
+{% endblock %}

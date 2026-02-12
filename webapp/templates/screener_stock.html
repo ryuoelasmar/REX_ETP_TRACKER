@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}{{ ticker_clean }} - Launch Screener{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+  <h1>{{ ticker_clean }} - Competitive Deep Dive</h1>
+  <div class="date">
+    <a href="/screener/">&laquo; Back to Rankings</a>
+  </div>
+</div>
+
+<!-- Sub-navigation -->
+<div style="display:flex; gap:4px; margin-bottom:20px; border-bottom:2px solid var(--navy); padding-bottom:8px;">
+  <a href="/screener/" class="pill{% if tab == 'rankings' %} active{% endif %}">Rankings</a>
+  <a href="#" class="pill{% if tab == 'competitive' %} active{% endif %}">Competitive Intel</a>
+  <a href="/screener/rex-funds" class="pill{% if tab == 'rex' %} active{% endif %}">REX Funds</a>
+</div>
+
+{% if result %}
+<!-- Stock Summary KPIs -->
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="num" style="{% if result.composite_score >= 70 %}color:var(--green);{% elif result.composite_score >= 40 %}color:var(--orange);{% else %}color:var(--gray);{% endif %}">{{ "%.1f"|format(result.composite_score) }}</div>
+    <div class="label">Composite Score</div>
+  </div>
+  <div class="kpi">
+    <div class="num">{% if result.predicted_aum %}${{ "{:,.0f}".format(result.predicted_aum) }}M{% else %}-{% endif %}</div>
+    <div class="label">Predicted AUM</div>
+  </div>
+  <div class="kpi">
+    <div class="num">{% if result.mkt_cap %}${{ "{:,.0f}".format(result.mkt_cap) }}M{% else %}-{% endif %}</div>
+    <div class="label">Market Cap</div>
+  </div>
+  <div class="kpi">
+    <div class="num">{{ result.sector or '-' }}</div>
+    <div class="label">Sector</div>
+  </div>
+  <div class="kpi">
+    <div class="num" style="font-size:18px;">
+      {% if result.filing_status and result.filing_status != 'Not Filed' %}
+      <span style="{% if 'Effective' in result.filing_status %}color:var(--green);{% elif 'Pending' in result.filing_status %}color:var(--blue);{% elif 'Competitor' in result.filing_status %}color:var(--orange);{% endif %}">
+        {{ result.filing_status }}
+      </span>
+      {% else %}Not Filed{% endif %}
+    </div>
+    <div class="label">Filing Status</div>
+  </div>
+</div>
+{% endif %}
+
+{% if products %}
+<!-- Existing Products Table -->
+<div class="section-header">
+  <h2>Existing Leveraged Products on {{ ticker_clean }}</h2>
+  <span class="badge">{{ products|length }} products</span>
+</div>
+
+<div style="overflow-x:auto;">
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Issuer</th>
+      <th>Direction</th>
+      <th>Leverage</th>
+      <th style="text-align:right;">AUM ($M)</th>
+      <th style="text-align:right;">ER (%)</th>
+      <th style="text-align:right;">Flow 1M</th>
+      <th style="text-align:right;">Flow 3M</th>
+      <th style="text-align:right;">Flow YTD</th>
+      <th style="text-align:right;">Spread</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in products|sort(attribute='aum', reverse=True) %}
+    <tr{% if p.is_rex %} style="background:#f0f7ff;"{% endif %}>
+      <td class="ticker-col">{{ p.ticker }}{% if p.is_rex %} <span style="background:var(--navy);color:white;padding:1px 6px;border-radius:8px;font-size:10px;">[REX]</span>{% endif %}</td>
+      <td style="font-size:12px;">{{ p.issuer or '-' }}</td>
+      <td>{{ p.direction or '-' }}</td>
+      <td>{{ p.leverage or '-' }}</td>
+      <td style="text-align:right; font-weight:600;">{{ "{:,.1f}".format(p.aum) }}</td>
+      <td style="text-align:right;">{% if p.expense_ratio %}{{ "%.2f"|format(p.expense_ratio) }}{% else %}-{% endif %}</td>
+      <td style="text-align:right; {% if p.flow_1m and p.flow_1m > 0 %}color:var(--green);{% elif p.flow_1m and p.flow_1m < 0 %}color:var(--red);{% endif %}">
+        {% if p.flow_1m %}{{ "{:,.1f}".format(p.flow_1m) }}{% else %}-{% endif %}
+      </td>
+      <td style="text-align:right; {% if p.flow_3m and p.flow_3m > 0 %}color:var(--green);{% elif p.flow_3m and p.flow_3m < 0 %}color:var(--red);{% endif %}">
+        {% if p.flow_3m %}{{ "{:,.1f}".format(p.flow_3m) }}{% else %}-{% endif %}
+      </td>
+      <td style="text-align:right; {% if p.flow_ytd and p.flow_ytd > 0 %}color:var(--green);{% elif p.flow_ytd and p.flow_ytd < 0 %}color:var(--red);{% endif %}">
+        {% if p.flow_ytd %}{{ "{:,.1f}".format(p.flow_ytd) }}{% else %}-{% endif %}
+      </td>
+      <td style="text-align:right;">{% if p.spread %}{{ "%.2f"|format(p.spread) }}{% else %}-{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<!-- Charts Row -->
+<div style="display:flex; gap:20px; margin-top:30px; flex-wrap:wrap;">
+  <!-- AUM Trajectory Chart -->
+  <div style="flex:1; min-width:400px; border:1px solid var(--border); border-radius:8px; padding:20px;">
+    <h3 style="font-size:15px; margin-bottom:12px;">AUM Trajectory (Last 12 Months)</h3>
+    <canvas id="aumChart" height="250"></canvas>
+  </div>
+
+  <!-- Market Share Chart -->
+  <div style="flex:0 0 320px; border:1px solid var(--border); border-radius:8px; padding:20px;">
+    <h3 style="font-size:15px; margin-bottom:12px;">Market Share (AUM)</h3>
+    <canvas id="shareChart" height="250"></canvas>
+  </div>
+</div>
+
+{% else %}
+<div class="what-changed">
+  <h2>No existing leveraged products found for {{ ticker_clean }}</h2>
+  <p>This is an <strong style="color:var(--green);">uncontested opportunity</strong> - no competing leveraged ETFs exist on this underlier.</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// AUM Trajectory Line Chart
+const aumData = {{ aum_series_json | safe }};
+if (aumData.length > 0) {
+  const colors = ['#1a1a2e', '#0984e3', '#27ae60', '#e67e22', '#e74c3c', '#636e72', '#9b59b6', '#1abc9c'];
+  const ctx = document.getElementById('aumChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: Array.from({length: 12}, (_, i) => `M-${12 - i}`),
+      datasets: aumData.map((d, i) => ({
+        label: d.label,
+        data: d.data.slice(0, 12).reverse(),
+        borderColor: colors[i % colors.length],
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 2,
+        tension: 0.3,
+      })),
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+      scales: {
+        y: { title: { display: true, text: 'AUM ($M)' }, grid: { color: '#f0f0f0' } },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+}
+
+// Market Share Doughnut
+const shareData = {{ market_share_json | safe }};
+if (shareData.length > 0) {
+  const rexColor = '#1a1a2e';
+  const otherColors = ['#0984e3', '#27ae60', '#e67e22', '#636e72', '#9b59b6', '#1abc9c', '#e74c3c', '#f39c12'];
+  let colorIdx = 0;
+  const bgColors = shareData.map(d => {
+    if (d.is_rex) return rexColor;
+    return otherColors[colorIdx++ % otherColors.length];
+  });
+
+  const ctx2 = document.getElementById('shareChart').getContext('2d');
+  new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels: shareData.map(d => d.label),
+      datasets: [{
+        data: shareData.map(d => d.value),
+        backgroundColor: bgColors,
+        borderWidth: 1,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: $${ctx.parsed.toLocaleString()}M` } },
+      },
+    },
+  });
+}
+</script>
+{% endblock %}

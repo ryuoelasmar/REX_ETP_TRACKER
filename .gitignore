@@ -20,6 +20,8 @@ http_cache/
 outputs/
 Excel/
 backup/
+data/
+nul
 
 # Environment variables and secrets
 .env

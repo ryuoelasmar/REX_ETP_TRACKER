@@ -182,6 +182,70 @@
   {% endif %}
 </div>
 
+<!-- Launch Screener -->
+<div style="border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:24px; background:var(--light);">
+  <h3 style="margin:0 0 4px; font-size:16px;">Launch Screener</h3>
+  <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">
+    Upload Bloomberg data (Excel with stock_data + etp_data sheets) to run the scoring pipeline.
+  </p>
+
+  {% if request.query_params.get('screener') == 'uploaded' %}
+  <div style="background:#e8f5e9; border-left:4px solid var(--green); padding:10px 14px; border-radius:0 6px 6px 0; margin-bottom:12px; font-size:13px;">
+    <strong style="color:var(--green);">Data uploaded.</strong> Scoring pipeline started in background. Refresh in a few seconds.
+  </div>
+  {% elif request.query_params.get('screener') == 'scoring' %}
+  <div style="background:#e3f2fd; border-left:4px solid var(--blue); padding:10px 14px; border-radius:0 6px 6px 0; margin-bottom:12px; font-size:13px;">
+    <strong style="color:var(--blue);">Re-scoring started.</strong> Results will update shortly.
+  </div>
+  {% elif request.query_params.get('screener') == 'running' %}
+  <div style="background:#e3f2fd; border-left:4px solid var(--blue); padding:10px 14px; border-radius:0 6px 6px 0; margin-bottom:12px; font-size:13px;">
+    Screener pipeline is already running. Please wait.
+  </div>
+  {% elif request.query_params.get('screener') == 'emailed' %}
+  <div style="background:#e8f5e9; border-left:4px solid var(--green); padding:10px 14px; border-radius:0 6px 6px 0; margin-bottom:12px; font-size:13px;">
+    <strong style="color:var(--green);">Screener report emailed successfully.</strong>
+  </div>
+  {% elif request.query_params.get('screener') == 'error' %}
+  <div style="background:#fce4ec; border-left:4px solid var(--red); padding:10px 14px; border-radius:0 6px 6px 0; margin-bottom:12px; font-size:13px;">
+    <strong style="color:var(--red);">Error:</strong> {{ request.query_params.get('msg', 'Upload failed') }}
+  </div>
+  {% endif %}
+
+  {% if screener_upload %}
+  <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">
+    <div>Last upload: <strong>{{ screener_upload.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</strong> ({{ screener_upload.status }})</div>
+    <div>Stocks: {{ screener_upload.stock_rows }} | ETPs: {{ screener_upload.etp_rows }} | Filings: {{ screener_upload.filing_rows }}</div>
+    {% if screener_upload.model_type %}
+    <div>Model: {{ screener_upload.model_type }} (R&sup2;={{ "%.2f"|format(screener_upload.model_r_squared or 0) }})</div>
+    {% endif %}
+    {% if screener_upload.error_message %}
+    <div style="color:var(--red);">Error: {{ screener_upload.error_message[:150] }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div style="display:flex; gap:12px; flex-wrap:wrap;">
+    <form method="post" action="/admin/screener/upload" enctype="multipart/form-data" style="display:flex; gap:8px; align-items:center;">
+      <input type="file" name="file" accept=".xlsx" required style="font-size:13px;">
+      <button type="submit" class="btn btn-primary btn-sm">Upload & Score</button>
+    </form>
+    <form method="post" action="/admin/screener/rescore"
+          onsubmit="return confirm('Re-run scoring on existing data?');">
+      <button type="submit" class="btn btn-sm" style="background:var(--blue); color:white; border:none;">Re-Score</button>
+    </form>
+    <form method="post" action="/admin/screener/email"
+          onsubmit="return confirm('Generate PDF and email the screener report?');">
+      <button type="submit" class="btn btn-sm" style="background:var(--green); color:white; border:none;">Email Report</button>
+    </form>
+  </div>
+
+  {% if screener_upload and screener_upload.status == 'completed' %}
+  <div style="margin-top:12px;">
+    <a href="/screener/" style="font-size:13px;">View Screener Results &rarr;</a>
+  </div>
+  {% endif %}
+</div>
+
 <!-- AI Analysis Status -->
 <div style="border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:24px; background:var(--light);">
   <h3 style="margin:0 0 12px; font-size:16px;">AI Analysis Status</h3>
