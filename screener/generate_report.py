@@ -59,7 +59,7 @@ def _compute_rankings(stock_df, etp_df):
 
         results.append({
             "ticker": str(row.get("Ticker", "")),
-            "sector": str(row.get("GICS Sector", "")) if row.get("GICS Sector") else "-",
+            "sector": str(row["GICS Sector"]) if pd.notna(row.get("GICS Sector")) else None,
             "composite_score": float(row.get("composite_score", 0)),
             "mkt_cap": float(row.get("Mkt Cap", 0)) if pd.notna(row.get("Mkt Cap")) else None,
             "total_oi_pctl": float(row.get("Total OI_pctl", 0)) if pd.notna(row.get("Total OI_pctl")) else None,

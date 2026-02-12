@@ -5,6 +5,7 @@ import logging
 import threading
 from datetime import datetime
 
+import pandas as pd
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -91,7 +92,7 @@ def run_screener_pipeline(upload_id: int) -> None:
                 upload_id=upload_id,
                 ticker=str(row.get("Ticker", "")),
                 company_name=None,
-                sector=str(row.get("GICS Sector", "")) if row.get("GICS Sector") else None,
+                sector=str(row["GICS Sector"]) if pd.notna(row.get("GICS Sector")) else None,
                 composite_score=float(row.get("composite_score", 0)),
                 mkt_cap=float(row.get("Mkt Cap", 0)) if row.get("Mkt Cap") else None,
                 call_oi_pctl=float(row.get("Total OI_pctl", 0)) if row.get("Total OI_pctl") else None,

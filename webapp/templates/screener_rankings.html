@@ -70,7 +70,7 @@
       <td class="ticker-col">
         <a href="/screener/stock/{{ r.ticker }}">{{ r.ticker }}</a>
       </td>
-      <td style="font-size:12px;">{{ r.sector or '-' }}</td>
+      <td style="font-size:12px;">{{ r.sector if r.sector and r.sector != 'nan' else '-' }}</td>
       <td style="text-align:right;">
         <span style="display:inline-block; width:40px; text-align:right; font-weight:600;
           {% if r.composite_score >= 70 %}color:var(--green);
@@ -141,7 +141,7 @@
       <td class="ticker-col">
         <a href="/screener/stock/{{ r.ticker }}">{{ r.ticker }}</a>
       </td>
-      <td style="font-size:12px;">{{ r.sector or '-' }}</td>
+      <td style="font-size:12px;">{{ r.sector if r.sector and r.sector != 'nan' else '-' }}</td>
       <td style="text-align:right;">
         <span style="display:inline-block; width:40px; text-align:right; font-weight:600;
           {% if r.composite_score >= 70 %}color:var(--green);

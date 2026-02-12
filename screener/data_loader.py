@@ -37,6 +37,14 @@ def load_stock_data(path: Path | str | None = None) -> pd.DataFrame:
     if "Ticker" in df.columns:
         df = df.dropna(subset=["Ticker"]).reset_index(drop=True)
 
+    # Deduplicate by ticker (source Excel sometimes has duplicate rows)
+    if "Ticker" in df.columns:
+        before = len(df)
+        df = df.drop_duplicates(subset=["Ticker"], keep="first").reset_index(drop=True)
+        dupes = before - len(df)
+        if dupes:
+            log.warning("Dropped %d duplicate ticker rows from stock_data", dupes)
+
     # Normalize ticker: keep original as ticker_raw, strip " US" for matching
     if "Ticker" in df.columns:
         df["ticker_raw"] = df["Ticker"]

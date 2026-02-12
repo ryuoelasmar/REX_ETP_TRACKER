@@ -39,6 +39,29 @@ VERDICT_BG = {"RECOMMEND": LIGHT_GREEN, "NEUTRAL": LIGHT_ORANGE, "CAUTION": LIGH
 # Tickers to exclude from rankings (known bad data)
 EXCLUDE_TICKERS = {"WBHC US"}
 
+# Sector abbreviations for narrow table columns
+SECTOR_ABBREV = {
+    "Information Technology": "Info Tech",
+    "Communication Services": "Comm Svcs",
+    "Consumer Discretionary": "Cons Disc",
+    "Consumer Staples": "Cons Staples",
+    "Health Care": "Health Care",
+    "Financials": "Financials",
+    "Industrials": "Industrials",
+    "Materials": "Materials",
+    "Energy": "Energy",
+    "Real Estate": "Real Estate",
+    "Utilities": "Utilities",
+}
+
+
+def _clean_sector(val) -> str:
+    """Return clean sector string, abbreviating long names and handling nan."""
+    s = str(val) if val is not None else ""
+    if not s or s == "nan" or s == "None":
+        return "-"
+    return SECTOR_ABBREV.get(s, s[:14])
+
 
 def _build_styles():
     styles = getSampleStyleSheet()
@@ -146,26 +169,38 @@ def generate_candidate_report(
         styles["ReportBody"]))
     story.append(Spacer(1, 12))
 
+    # Sort candidates by demand weighted percentile (strongest signal first)
+    sorted_candidates = sorted(
+        candidates,
+        key=lambda c: c["demand"].get("weighted_pctl", 0),
+        reverse=True,
+    )
+
     # Summary table - use Paragraph for wrappable recommendation column
     story.append(Paragraph("Evaluation Summary", styles["SectionHead"]))
-    header = ["Ticker", "Verdict", "Demand", "Competition", "Filing", "Recommendation"]
+    story.append(Paragraph(
+        "Sorted by demand strength (highest first). Priority rank reflects launch order recommendation.",
+        styles["SmallNote"]))
+    story.append(Spacer(1, 4))
+    header = ["#", "Ticker", "Verdict", "Demand", "Score", "Recommendation"]
     data = [header]
-    for c in candidates:
+    for i, c in enumerate(sorted_candidates):
+        wpctl = c["demand"].get("weighted_pctl", 0)
         data.append([
+            str(i + 1),
             c["ticker_clean"],
             c["verdict"],
             c["demand"]["verdict"],
-            c["competition"]["verdict"].replace("_", " "),
-            c["filing"]["verdict"].replace("_", " "),
+            f"{wpctl:.0f}p" if wpctl else "-",
             Paragraph(c["reason"][:80], styles["CellWrap"]),
         ])
 
-    t = Table(data, colWidths=[38, 58, 42, 58, 58, 222])
+    t = Table(data, colWidths=[18, 38, 58, 42, 32, 288])
     ts = _table_style()
-    for i, c in enumerate(candidates):
+    for i, c in enumerate(sorted_candidates):
         vcolor = VERDICT_COLORS.get(c["verdict"], ORANGE)
-        ts.add("TEXTCOLOR", (1, i + 1), (1, i + 1), vcolor)
-        ts.add("FONTNAME", (1, i + 1), (1, i + 1), "Helvetica-Bold")
+        ts.add("TEXTCOLOR", (2, i + 1), (2, i + 1), vcolor)
+        ts.add("FONTNAME", (2, i + 1), (2, i + 1), "Helvetica-Bold")
     t.setStyle(ts)
     story.append(t)
     story.append(PageBreak())
@@ -272,8 +307,9 @@ def _build_candidate_card(story: list, c: dict, styles) -> None:
             f"{oi['value']:,.0f}" if oi.get("value") else "-",
             _fmt_pctl(oi.get("percentile"))])
         turnover = metrics.get("Turnover / Traded Value", {})
-        demand_rows.append(["Turnover",
-            _fmt_money(turnover.get("value")) if turnover.get("value") else "-",
+        tv_raw = turnover.get("value")
+        tv_display = _fmt_money(tv_raw / 1_000_000) if tv_raw else "-"
+        demand_rows.append(["Turnover", tv_display,
             _fmt_pctl(turnover.get("percentile"))])
         vol = metrics.get("Volatility 30D", {})
         demand_rows.append(["Volatility 30D",
@@ -436,7 +472,7 @@ def _build_ranking_table(story, styles, rows):
             data.append([
                 str(row_num),
                 str(r.get("ticker", "")),
-                str(r.get("sector", "-"))[:18],
+                _clean_sector(r.get("sector")),
                 f"{r.get('composite_score', 0):.1f}",
                 _fmt_money(r.get("mkt_cap")) if r.get("mkt_cap") else "-",
                 f"{r.get('total_oi_pctl', 0):.0f}" if r.get("total_oi_pctl") else "-",
