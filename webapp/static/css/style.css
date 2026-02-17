@@ -361,10 +361,22 @@ td.num-col, th.num-col { text-align: right; font-family: var(--font-mono); font-
   border-color: var(--blue); box-shadow: var(--shadow-md);
   transform: translateY(-1px); text-decoration: none; color: inherit;
 }
-.trust-card h3 { font-size: 15px; margin: 0; font-weight: 600; }
-.trust-card-header { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-2); }
-.trust-card-stats { display: flex; gap: var(--sp-4); font-size: var(--text-base); color: var(--gray-500); }
-.trust-card-pending { font-size: var(--text-base); color: var(--orange); font-weight: 600; }
+.trust-card h3 { font-size: 14px; margin: 0; font-weight: 600; line-height: 1.3; }
+.trust-card-header { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+.trust-monogram {
+  width: 40px; height: 40px; min-width: 40px;
+  border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-weight: 700; font-size: 14px;
+  font-family: var(--font-mono); letter-spacing: -0.5px;
+  text-transform: uppercase;
+}
+.trust-card-stats { display: flex; gap: var(--sp-3); font-size: var(--text-sm); color: var(--gray-500); flex-wrap: wrap; }
+.trust-stat strong { font-family: var(--font-mono); font-size: var(--text-base); }
+.trust-stat-green { color: var(--green); }
+.trust-stat-orange { color: var(--orange); }
+.trust-stat-red { color: var(--red); }
+.trust-card-pending { font-size: var(--text-sm); color: var(--orange); font-weight: 600; }
 .trust-card-pending span { font-weight: 400; color: var(--gray-400); font-size: var(--text-xs); }
 
 /* ===== DOWNLOADS ===== */

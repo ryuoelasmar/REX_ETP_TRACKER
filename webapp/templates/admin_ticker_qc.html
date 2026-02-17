@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Ticker Quality Check - Admin{% endblock %}
+
+{% block content %}
+<div class="header">
+  <h1>Ticker Quality Check</h1>
+  <div class="date">
+    Data quality report &middot;
+    <a href="/admin/" style="font-size:13px;">Back to Admin</a>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="num">{{ total_funds }}</div>
+    <div class="label">Total Funds</div>
+  </div>
+  <div class="kpi">
+    <div class="num">{{ total_tickers }}</div>
+    <div class="label">Unique Tickers</div>
+  </div>
+  <div class="kpi kpi-red">
+    <div class="num">{{ duplicate_count }}</div>
+    <div class="label">Duplicate Tickers</div>
+  </div>
+  <div class="kpi kpi-orange">
+    <div class="num">{{ missing_count }}</div>
+    <div class="label">Missing Tickers</div>
+  </div>
+</div>
+
+<!-- Duplicate Tickers -->
+<div class="section-header">
+  <h2>Duplicate Tickers</h2>
+  <span class="badge">{{ duplicate_count }}</span>
+</div>
+
+{% if duplicates %}
+<p style="font-size:13px; color:var(--muted); margin-bottom:16px;">
+  These tickers are assigned to multiple funds with different Series IDs.
+  This typically happens when a prospectus doesn't assign unique tickers to all funds.
+  <strong style="color:var(--red);">CROSS-TRUST</strong> duplicates indicate the same ticker used by different issuers.
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Funds</th>
+      <th>Type</th>
+      <th>Details</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ticker, info in duplicates %}
+    <tr>
+      <td><strong style="font-family:var(--font-mono); font-size:14px;">{{ ticker }}</strong></td>
+      <td class="num-col">{{ info.funds|length }}</td>
+      <td>
+        {% if info.cross_trust %}
+        <span class="status-pill" style="background:var(--red-bg); color:var(--red); font-weight:600;">CROSS-TRUST</span>
+        {% else %}
+        <span class="status-pill" style="background:var(--orange-bg); color:var(--orange);">SAME-TRUST</span>
+        {% endif %}
+      </td>
+      <td style="font-size:12px;">
+        {% for f in info.funds %}
+        <div style="padding:2px 0; {% if not loop.last %}border-bottom:1px solid var(--gray-100);{% endif %}">
+          <strong>{{ f.fund_name }}</strong>
+          <span style="color:var(--muted);">[{{ f.trust }}]</span>
+          <span style="color:var(--muted); font-family:var(--font-mono); font-size:11px;">SID:{{ f.series_id }}</span>
+          <span class="status-pill" style="font-size:10px; padding:1px 6px;
+            {% if f.status == 'EFFECTIVE' %}background:var(--green-bg); color:var(--green);
+            {% elif f.status == 'PENDING' %}background:var(--orange-bg); color:var(--orange);
+            {% else %}background:var(--gray-100); color:var(--gray-500);{% endif %}">
+            {{ f.status }}
+          </span>
+        </div>
+        {% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty-state" style="padding:40px; text-align:center;">
+  <p style="color:var(--green); font-weight:600;">No duplicate tickers found.</p>
+</div>
+{% endif %}
+
+<!-- Missing Tickers -->
+<div class="section-header" style="margin-top:32px;">
+  <h2>Funds Missing Tickers</h2>
+  <span class="badge">{{ missing_count }}</span>
+</div>
+
+{% if missing_ticker %}
+<p style="font-size:13px; color:var(--muted); margin-bottom:16px;">
+  These funds have no ticker assigned. This is common for newly filed funds that haven't started trading yet.
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th onclick="sortTable(this, 0)" class="sortable">Fund Name</th>
+      <th onclick="sortTable(this, 1)" class="sortable">Trust</th>
+      <th onclick="sortTable(this, 2)" class="sortable">Status</th>
+      <th>Series ID</th>
+      <th>Latest Form</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for f in missing_ticker %}
+    <tr>
+      <td><strong>{{ f.fund_name }}</strong></td>
+      <td style="font-size:12px;">{{ f.trust }}</td>
+      <td>
+        <span class="status-pill" style="font-size:11px; padding:2px 8px;
+          {% if f.status == 'EFFECTIVE' %}background:var(--green-bg); color:var(--green);
+          {% elif f.status == 'PENDING' %}background:var(--orange-bg); color:var(--orange);
+          {% elif f.status == 'DELAYED' %}background:var(--red-bg); color:var(--red);
+          {% else %}background:var(--gray-100); color:var(--gray-500);{% endif %}">
+          {{ f.status }}
+        </span>
+      </td>
+      <td class="accession-col">{{ f.series_id }}</td>
+      <td style="font-size:12px;">{{ f.form }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty-state" style="padding:40px; text-align:center;">
+  <p style="color:var(--green); font-weight:600;">All funds have tickers assigned.</p>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -85,11 +85,17 @@
 </div>
 
 <div class="trust-grid">
+  {% set monogram_colors = ['#1565C0','#2E7D32','#6A1B9A','#C62828','#00838F','#4527A0','#AD1457','#EF6C00','#283593','#00695C','#37474F','#5D4037'] %}
   {% for t in trusts %}
   <a href="/trusts/{{ t.slug }}" class="trust-card">
     <div class="trust-card-header">
-      <h3>{{ t.name }}</h3>
-      {% if t.is_rex %}<span class="rex-badge">[REX]</span>{% endif %}
+      <div class="trust-monogram" style="background:{{ monogram_colors[loop.index0 % monogram_colors|length] }};">
+        {{ t.name.split()[0][0] }}{{ t.name.split()[1][0] if t.name.split()|length > 1 else '' }}
+      </div>
+      <div>
+        <h3>{{ t.name }}</h3>
+        {% if t.is_rex %}<span class="rex-badge">[REX]</span>{% endif %}
+      </div>
     </div>
     {% if t.total == 0 %}
     <div class="trust-card-pending">
@@ -97,11 +103,11 @@
     </div>
     {% else %}
     <div class="trust-card-stats">
-      <span><strong>{{ t.total }}</strong> funds</span>
-      <span style="color:var(--green);">{{ t.effective }} eff</span>
-      <span style="color:var(--orange);">{{ t.pending }} pend</span>
+      <span class="trust-stat"><strong>{{ t.total }}</strong> funds</span>
+      <span class="trust-stat trust-stat-green"><strong>{{ t.effective }}</strong> eff</span>
+      <span class="trust-stat trust-stat-orange"><strong>{{ t.pending }}</strong> pend</span>
       {% if t.delayed > 0 %}
-      <span style="color:var(--red);">{{ t.delayed }} del</span>
+      <span class="trust-stat trust-stat-red"><strong>{{ t.delayed }}</strong> del</span>
       {% endif %}
     </div>
     {% endif %}

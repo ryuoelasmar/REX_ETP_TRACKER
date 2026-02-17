@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from webapp.dependencies import get_db
-from webapp.models import Trust, AnalysisResult, PipelineRun, ScreenerUpload
+from webapp.models import Trust, FundStatus, AnalysisResult, PipelineRun, ScreenerUpload
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory="webapp/templates")
@@ -426,3 +426,78 @@ def screener_email_report(
     except Exception as e:
         from urllib.parse import quote
         return RedirectResponse(f"/admin/?screener=error&msg={quote(str(e)[:100])}", status_code=303)
+
+
+# --- Ticker Quality Check ---
+
+@router.get("/ticker-qc")
+def ticker_qc(request: Request, db: Session = Depends(get_db)):
+    """Ticker quality check - find duplicate and missing tickers across all funds."""
+    if not _is_admin(request):
+        return RedirectResponse("/admin/", status_code=302)
+
+    # Get all fund statuses with their trust names
+    rows = db.execute(
+        select(
+            FundStatus.ticker,
+            FundStatus.fund_name,
+            FundStatus.series_id,
+            FundStatus.class_contract_id,
+            FundStatus.status,
+            FundStatus.latest_form,
+            Trust.name.label("trust_name"),
+        )
+        .join(Trust, Trust.id == FundStatus.trust_id)
+        .order_by(FundStatus.ticker)
+    ).all()
+
+    # Build ticker -> funds mapping
+    from collections import defaultdict
+    ticker_map = defaultdict(list)
+    missing_ticker = []
+    total_funds = 0
+
+    for r in rows:
+        total_funds += 1
+        ticker = (r.ticker or "").strip().upper()
+        if not ticker or ticker in ("NAN", "N/A", "NONE", "TBD", "SYMBOL"):
+            missing_ticker.append({
+                "fund_name": r.fund_name,
+                "series_id": r.series_id or "",
+                "trust": r.trust_name,
+                "status": r.status,
+                "form": r.latest_form or "",
+            })
+        else:
+            ticker_map[ticker].append({
+                "fund_name": r.fund_name,
+                "series_id": r.series_id or "",
+                "class_id": r.class_contract_id or "",
+                "trust": r.trust_name,
+                "status": r.status,
+                "form": r.latest_form or "",
+            })
+
+    # Find duplicates (same ticker, different series IDs)
+    duplicates = {}
+    for ticker, funds in ticker_map.items():
+        series_ids = set(f["series_id"] for f in funds)
+        if len(series_ids) > 1:
+            cross_trust = len(set(f["trust"] for f in funds)) > 1
+            duplicates[ticker] = {"funds": funds, "cross_trust": cross_trust}
+
+    # Sort duplicates by severity (cross-trust first, then by count)
+    sorted_dupes = sorted(
+        duplicates.items(),
+        key=lambda x: (-x[1]["cross_trust"], -len(x[1]["funds"]), x[0]),
+    )
+
+    return templates.TemplateResponse("admin_ticker_qc.html", {
+        "request": request,
+        "total_funds": total_funds,
+        "total_tickers": len(ticker_map),
+        "duplicates": sorted_dupes,
+        "duplicate_count": len(duplicates),
+        "missing_ticker": missing_ticker,
+        "missing_count": len(missing_ticker),
+    })
