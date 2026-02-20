@@ -1,0 +1,42 @@
+{% set active_tab = 'treemap' %}
+{% extends "market/base.html" %}
+
+{% block title %}Product Treemap — REX Financial Intelligence Hub{% endblock %}
+
+{% block head %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3"></script>
+{% endblock %}
+
+{% block market_content %}
+{# Category Filter #}
+<div class="category-selector">
+  <label for="catFilter">Category:</label>
+  <select id="catFilter" onchange="window.location='/market/treemap?cat='+this.value">
+    <option value="All" {{ 'selected' if category == 'All' else '' }}>All Categories</option>
+    {% for cat in categories %}
+    <option value="{{ cat }}" {{ 'selected' if category == cat else '' }}>{{ cat }}</option>
+    {% endfor %}
+  </select>
+  <span class="kpi-value">{{ summary.total_aum_fmt }} total AUM</span>
+</div>
+
+{% if summary.products %}
+<div class="treemap-container">
+  <canvas id="treemapChart"></canvas>
+</div>
+{% else %}
+<div class="alert alert-warning">No product data available for this category.</div>
+{% endif %}
+{% endblock %}
+
+{% block market_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  {% if summary and summary.products %}
+  var products = {{ summary.products|tojson }};
+  MarketCharts.renderTreemap('treemapChart', products);
+  {% endif %}
+});
+</script>
+{% endblock %}

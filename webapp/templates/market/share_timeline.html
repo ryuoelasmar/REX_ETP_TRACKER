@@ -1,0 +1,49 @@
+{% set active_tab = 'share' %}
+{% extends "market/base.html" %}
+
+{% block title %}Market Share Timeline — REX Financial Intelligence Hub{% endblock %}
+
+{% block market_content %}
+{% if timeline and timeline.series %}
+
+<h2 class="section-title">Market Share by Category — Last 24 Months</h2>
+
+{# Category toggle checkboxes #}
+<div class="share-controls" id="shareControls">
+  {% for s in timeline.series %}
+  <label>
+    <input type="checkbox" checked data-series-idx="{{ loop.index0 }}" onchange="toggleSeries(this)">
+    {{ s.short_name or s.name }}
+  </label>
+  {% endfor %}
+</div>
+
+<div class="chart-box">
+  <canvas id="shareChart"></canvas>
+</div>
+
+{% else %}
+<div class="alert alert-warning">No market share timeline data available.</div>
+{% endif %}
+{% endblock %}
+
+{% block market_scripts %}
+<script>
+var _shareChart = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  {% if timeline and timeline.series %}
+  var timelineData = {{ timeline|tojson }};
+  _shareChart = MarketCharts.renderShareTimeline('shareChart', timelineData);
+  {% endif %}
+});
+
+function toggleSeries(checkbox) {
+  if (!_shareChart) return;
+  var idx = parseInt(checkbox.getAttribute('data-series-idx'));
+  var meta = _shareChart.getDatasetMeta(idx);
+  meta.hidden = !checkbox.checked;
+  _shareChart.update();
+}
+</script>
+{% endblock %}

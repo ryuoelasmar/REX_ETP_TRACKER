@@ -1,0 +1,86 @@
+{% set active_tab = 'issuer' %}
+{% extends "market/base.html" %}
+
+{% block title %}Issuer Analysis — REX Financial Intelligence Hub{% endblock %}
+
+{% block market_content %}
+{# Category Filter #}
+<div class="category-selector">
+  <label for="catFilter">Category:</label>
+  <select id="catFilter" onchange="window.location='/market/issuer?cat='+this.value">
+    <option value="All" {{ 'selected' if category == 'All' else '' }}>All Categories</option>
+    {% for cat in categories %}
+    <option value="{{ cat }}" {{ 'selected' if category == cat else '' }}>{{ cat }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+{% if summary %}
+{# KPI Row #}
+<div class="kpi-row">
+  <div class="kpi-card">
+    <div class="kpi-label">Total Market AUM</div>
+    <div class="kpi-value">{{ summary.total_aum_fmt }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label"># Issuers</div>
+    <div class="kpi-value">{{ summary.issuers|length }}</div>
+  </div>
+</div>
+
+{# Top 10 Issuer Bar Chart #}
+<div class="chart-box" style="margin-bottom: var(--sp-6);">
+  <h3>Top 10 Issuers by AUM</h3>
+  <canvas id="issuerTopChart"></canvas>
+</div>
+
+{# Sortable Issuer Table #}
+<h2 class="section-title">All Issuers</h2>
+<div class="table-responsive">
+  <table class="data-table" id="issuerTable">
+    <thead>
+      <tr>
+        <th onclick="sortTable('issuerTable', 0)">#</th>
+        <th onclick="sortTable('issuerTable', 1)">Issuer</th>
+        <th onclick="sortTable('issuerTable', 2)">AUM</th>
+        <th onclick="sortTable('issuerTable', 3)">Market Share %</th>
+        <th onclick="sortTable('issuerTable', 4)">1W Flow</th>
+        <th onclick="sortTable('issuerTable', 5)">1M Flow</th>
+        <th onclick="sortTable('issuerTable', 6)"># Products</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for iss in summary.issuers %}
+      <tr class="{{ 'rex-highlight' if iss.is_rex else '' }}">
+        <td>{{ loop.index }}</td>
+        <td>{{ iss.issuer_name }}{% if iss.is_rex %} <span style="color:#1E40AF;font-weight:600;font-size:11px;">(REX)</span>{% endif %}</td>
+        <td class="num-cell">{{ iss.aum_fmt }}</td>
+        <td class="num-cell">{{ iss.market_share_pct }}%</td>
+        <td class="num-cell {{ 'positive' if iss.flow_1w > 0 else 'negative' if iss.flow_1w < 0 else '' }}">{{ iss.flow_1w_fmt }}</td>
+        <td class="num-cell {{ 'positive' if iss.flow_1m > 0 else 'negative' if iss.flow_1m < 0 else '' }}">{{ iss.flow_1m_fmt }}</td>
+        <td class="num-cell">{{ iss.num_products }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<div class="alert alert-warning">No issuer data available for this category.</div>
+{% endif %}
+{% endblock %}
+
+{% block market_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  {% if summary and summary.issuers %}
+  var issuers = {{ summary.issuers|tojson }};
+  var top10 = issuers.slice(0, 10);
+  var labels = top10.map(function(i) { return i.issuer_name; });
+  var values = top10.map(function(i) { return i.total_aum; });
+  var isRex = top10.map(function(i) { return i.is_rex; });
+  MarketCharts.renderBarChart('issuerTopChart', labels, values, isRex);
+  {% endif %}
+});
+</script>
+{% endblock %}

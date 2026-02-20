@@ -1,0 +1,147 @@
+{% set active_tab = 'underlier' %}
+{% extends "market/base.html" %}
+
+{% block title %}Underlier Deep-Dive — REX Financial Intelligence Hub{% endblock %}
+
+{% block market_content %}
+{% if summary %}
+
+{# Type toggle #}
+<div class="product-type-filter">
+  <a href="/market/underlier?type=income" class="filter-btn {{ 'active' if underlier_type == 'income' else '' }}">Income</a>
+  <a href="/market/underlier?type=li" class="filter-btn {{ 'active' if underlier_type == 'li' else '' }}">L&I Single Stock</a>
+</div>
+
+<div class="underlier-split">
+  {# Left panel — underlier list #}
+  <div class="underlier-list">
+    {% if summary.underliers %}
+    {% for ul in summary.underliers %}
+    <button class="underlier-btn {{ 'active' if selected_underlier == ul.name else '' }}"
+            onclick="selectUnderlier('{{ ul.name|e }}')">
+      {{ ul.name }}
+      <span class="aum-badge">{{ ul.aum_fmt }} ({{ ul.num_products }})</span>
+    </button>
+    {% endfor %}
+    {% else %}
+    <p style="padding: var(--sp-3); color: var(--gray-500); font-size: var(--text-sm);">No underliers found.</p>
+    {% endif %}
+  </div>
+
+  {# Right panel — product table #}
+  <div class="underlier-products" id="underlierProducts">
+    {% if selected_underlier and summary.products %}
+    <h2 class="section-title">{{ selected_underlier }} — {{ summary.products|length }} Products</h2>
+    <div class="table-responsive">
+      <table class="data-table" id="underlierTable">
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Fund Name</th>
+            {% if underlier_type == 'li' %}
+            <th>Direction</th>
+            <th>Leverage</th>
+            {% endif %}
+            <th>AUM</th>
+            <th>1W Flow</th>
+            <th>Yield</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in summary.products %}
+          <tr class="{{ 'rex-highlight' if p.is_rex else '' }}">
+            <td class="ticker-cell">{{ p.ticker }}</td>
+            <td class="name-cell" title="{{ p.fund_name }}">{{ p.fund_name|truncate(40, true) }}</td>
+            {% if underlier_type == 'li' %}
+            <td>{{ p.direction }}</td>
+            <td>{{ p.leverage }}</td>
+            {% endif %}
+            <td class="num-cell">{{ p.aum_fmt }}</td>
+            <td class="num-cell {{ 'positive' if p.flow_1w > 0 else 'negative' if p.flow_1w < 0 else '' }}">{{ p.flow_1w_fmt }}</td>
+            <td class="num-cell">{{ p.yield_fmt }}</td>
+            <td>{% if p.is_rex %}<span style="color:#1E40AF;font-weight:600;font-size:11px;">REX</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% elif selected_underlier %}
+    <div class="alert alert-warning">No products found for {{ selected_underlier }}.</div>
+    {% else %}
+    <p style="padding: var(--sp-6); color: var(--gray-500); text-align: center;">Select an underlier from the list to view products.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% else %}
+<div class="alert alert-warning">No underlier data available.</div>
+{% endif %}
+{% endblock %}
+
+{% block market_scripts %}
+<script>
+function selectUnderlier(name) {
+  var type = '{{ underlier_type }}';
+  // AJAX update
+  fetch('/market/api/underlier?type=' + encodeURIComponent(type) + '&underlier=' + encodeURIComponent(name))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) {
+        window.location = '/market/underlier?type=' + encodeURIComponent(type) + '&underlier=' + encodeURIComponent(name);
+        return;
+      }
+      updateUnderlierProducts(data, name, type);
+      // Update active button
+      var btns = document.querySelectorAll('.underlier-btn');
+      btns.forEach(function(b) { b.classList.remove('active'); });
+      btns.forEach(function(b) { if (b.textContent.trim().indexOf(name) === 0) b.classList.add('active'); });
+      // Update URL without reload
+      history.pushState(null, '', '/market/underlier?type=' + encodeURIComponent(type) + '&underlier=' + encodeURIComponent(name));
+    })
+    .catch(function() {
+      window.location = '/market/underlier?type=' + encodeURIComponent(type) + '&underlier=' + encodeURIComponent(name);
+    });
+}
+
+function updateUnderlierProducts(data, name, type) {
+  var panel = document.getElementById('underlierProducts');
+  if (!panel || !data.products) return;
+
+  var isLi = type === 'li';
+  var html = '<h2 class="section-title">' + escHtml(name) + ' — ' + data.products.length + ' Products</h2>';
+  html += '<div class="table-responsive"><table class="data-table" id="underlierTable"><thead><tr>';
+  html += '<th>Ticker</th><th>Fund Name</th>';
+  if (isLi) html += '<th>Direction</th><th>Leverage</th>';
+  html += '<th>AUM</th><th>1W Flow</th><th>Yield</th><th></th>';
+  html += '</tr></thead><tbody>';
+
+  data.products.forEach(function(p) {
+    var rowCls = p.is_rex ? ' class="rex-highlight"' : '';
+    var flowCls = p.flow_1w > 0 ? ' positive' : (p.flow_1w < 0 ? ' negative' : '');
+    html += '<tr' + rowCls + '>';
+    html += '<td class="ticker-cell">' + escHtml(p.ticker) + '</td>';
+    html += '<td class="name-cell">' + escHtml(p.fund_name) + '</td>';
+    if (isLi) {
+      html += '<td>' + escHtml(p.direction) + '</td>';
+      html += '<td>' + escHtml(p.leverage) + '</td>';
+    }
+    html += '<td class="num-cell">' + escHtml(p.aum_fmt) + '</td>';
+    html += '<td class="num-cell' + flowCls + '">' + escHtml(p.flow_1w_fmt) + '</td>';
+    html += '<td class="num-cell">' + escHtml(p.yield_fmt) + '</td>';
+    html += '<td>' + (p.is_rex ? '<span style="color:#1E40AF;font-weight:600;font-size:11px;">REX</span>' : '') + '</td>';
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  panel.innerHTML = html;
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  var d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+</script>
+{% endblock %}
