@@ -135,6 +135,11 @@ def create_app() -> FastAPI:
         request.session.clear()
         return RedirectResponse("/login", status_code=302)
 
+    # --- Home page ---
+    @app.get("/")
+    def home_page(request: Request):
+        return templates.TemplateResponse("home.html", {"request": request})
+
     # --- Routers ---
     from webapp.routers import auth_routes, dashboard, trusts, funds, search, analysis, digest, downloads, api, admin, screener, market
     app.include_router(auth_routes.router)

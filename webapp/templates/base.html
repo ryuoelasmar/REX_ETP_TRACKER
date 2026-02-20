@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}ETP Filing Tracker{% endblock %}</title>
+  <title>{% block title %}REX Financial Intelligence Hub{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -14,7 +14,8 @@
 
 <nav class="sticky-nav">
   <a href="/" class="brand" style="text-decoration:none">REX Financial</a>
-  <a href="/" {% if request.url.path == '/' %}class="active"{% endif %}>Dashboard</a>
+  <a href="/" {% if request.url.path == '/' %}class="active"{% endif %}>Home</a>
+  <a href="/dashboard" {% if '/dashboard' in request.url.path %}class="active"{% endif %}>Dashboard</a>
   <a href="/funds/" {% if '/funds' in request.url.path %}class="active"{% endif %}>Funds</a>
   <a href="/search/" {% if '/search' in request.url.path %}class="active"{% endif %}>Search</a>
   <a href="/downloads/" {% if '/downloads' in request.url.path %}class="active"{% endif %}>Downloads</a>

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}REX Financial Intelligence Hub{% endblock %}
+{% block content %}
+<div class="home-hero">
+  <h1 class="home-title">REX Financial Intelligence Hub</h1>
+  <p class="home-tagline">
+    A unified intelligence platform for tracking, analyzing, and monitoring the
+    leveraged and structured ETP market. Built for REX Financial product teams to
+    monitor SEC filing activity across 122 trusts, benchmark market positioning
+    against competitors, evaluate launch candidates, and track inflow/outflow trends
+    in real time.
+  </p>
+</div>
+
+<div class="home-grid">
+  <a href="/dashboard" class="home-card">
+    <div class="home-card-icon">FILINGS</div>
+    <div class="home-card-title">Filing Tracker</div>
+    <div class="home-card-desc">Monitor SEC filings across 122 trusts. Track 485BPOS, 485BXT, and 497 forms in real time.</div>
+  </a>
+  <a href="/market/rex" class="home-card">
+    <div class="home-card-icon">MARKET</div>
+    <div class="home-card-title">Market Intelligence</div>
+    <div class="home-card-desc">Competitive AUM analysis, market share tracking, and category-level benchmarking.</div>
+  </a>
+  <a href="/screener/" class="home-card">
+    <div class="home-card-icon">SCREEN</div>
+    <div class="home-card-title">Launch Screener</div>
+    <div class="home-card-desc">Evaluate ETP launch candidates across 4 scoring pillars: AUM, flows, options, spread.</div>
+  </a>
+  <a href="/funds/" class="home-card">
+    <div class="home-card-icon">FUNDS</div>
+    <div class="home-card-title">Fund Search</div>
+    <div class="home-card-desc">Search 7,000+ ETF funds by ticker, name, or trust. Filter by status and form type.</div>
+  </a>
+  <a href="/downloads/" class="home-card">
+    <div class="home-card-icon">EXPORT</div>
+    <div class="home-card-title">Downloads</div>
+    <div class="home-card-desc">Export fund status, filing history, and pipeline CSVs for any trust.</div>
+  </a>
+</div>
+
+<div class="home-contact">
+  <p>Questions or feedback about this platform? Contact <a href="mailto:relasmar@rexfin.com">relasmar@rexfin.com</a></p>
+</div>
+{% endblock %}
