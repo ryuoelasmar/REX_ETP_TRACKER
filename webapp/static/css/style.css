@@ -293,7 +293,6 @@ td {
   border-bottom: 1px solid var(--gray-100);
   vertical-align: middle;
 }
-tbody tr:first-child td { padding-top: var(--sp-3); }
 tbody tr:nth-child(even) { background: var(--gray-50); }
 tr.today-highlight { background: var(--green-bg); }
 
