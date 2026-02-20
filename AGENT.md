@@ -386,6 +386,9 @@ In the `.market-nav-pills` div, replace the existing 2 pills with 6 pills:
 
 ---
 
-## Status: IN_PROGRESS
+## Status: DONE
 
 ## Log:
+- 432064e feat: add 4 new service functions + sparkline_data to market_data.py
+- d2001c7 feat: add 4 new page routes, 4 API routes, enhance REX view in market.py
+- 071f202 feat: update market nav to 6 pills in base.html
