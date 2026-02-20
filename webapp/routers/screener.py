@@ -50,6 +50,12 @@ def _data_available() -> bool:
         return False
 
 
+def _cache_warming() -> bool:
+    """Check if the cache is currently being warmed up."""
+    from webapp.services.screener_3x_cache import is_warming
+    return is_warming()
+
+
 # ---------------------------------------------------------------------------
 # 3x Recommendations (landing page)
 # ---------------------------------------------------------------------------
@@ -64,6 +70,7 @@ def screener_3x_recommendations(request: Request):
             "request": request,
             "tab": "recommendations",
             "data_available": _data_available(),
+            "cache_warming": _cache_warming(),
         })
 
     return templates.TemplateResponse("screener_3x.html", {
@@ -92,6 +99,7 @@ def screener_4x_candidates(request: Request):
             "request": request,
             "tab": "4x",
             "data_available": _data_available(),
+            "cache_warming": _cache_warming(),
         })
 
     four_x = analysis.get("four_x", [])
@@ -123,6 +131,7 @@ def screener_market_landscape(request: Request):
             "request": request,
             "tab": "market",
             "data_available": _data_available(),
+            "cache_warming": _cache_warming(),
         })
 
     return templates.TemplateResponse("screener_market.html", {
@@ -243,6 +252,7 @@ def screener_risk_watchlist(request: Request):
             "request": request,
             "tab": "risk",
             "data_available": _data_available(),
+            "cache_warming": _cache_warming(),
         })
 
     risk_watchlist = analysis.get("risk_watchlist", [])
@@ -397,6 +407,7 @@ def screener_evaluate_page(request: Request):
         "request": request,
         "tab": "evaluate",
         "data_available": _data_available(),
+        "cache_warming": _cache_warming(),
     })
 
 

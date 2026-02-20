@@ -70,11 +70,21 @@ class SiteAuthMiddleware(BaseHTTPMiddleware):
 templates = Jinja2Templates(directory=str(WEBAPP_DIR / "templates"))
 
 
+def _prewarm_screener_cache() -> None:
+    """Pre-warm screener cache in a background thread."""
+    from webapp.services.screener_3x_cache import warm_cache
+    import threading
+    t = threading.Thread(target=warm_cache, name="screener-cache-warm", daemon=True)
+    t.start()
+    log.info("Screener cache warm-up started in background thread.")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: initialize database. Shutdown: cleanup."""
+    """Startup: initialize database, pre-warm screener cache. Shutdown: cleanup."""
     init_db()
     log.info("Database initialized.")
+    _prewarm_screener_cache()
     yield
 
 

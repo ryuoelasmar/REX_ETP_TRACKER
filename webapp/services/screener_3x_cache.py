@@ -1,14 +1,17 @@
-"""In-memory cache for 3x/4x analysis results.
+"""In-memory cache for 3x/4x analysis results with disk persistence.
 
 The analysis pipeline takes ~20 seconds. Results only change when Bloomberg
 data is re-uploaded, so we cache aggressively and invalidate on upload.
+On startup, the disk cache is loaded to avoid "No Bloomberg Data" on Render.
 """
 from __future__ import annotations
 
 import logging
+import pickle
 import threading
 import time
 from datetime import datetime
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 
@@ -16,6 +19,14 @@ _cache: dict = {}
 _cache_lock = threading.Lock()
 _cache_timestamp: float = 0
 _CACHE_TTL = 3600  # 1 hour safety net
+_warming: bool = False
+
+_DISK_CACHE_PATH = Path("data/SCREENER/cache.pkl")
+
+
+def is_warming() -> bool:
+    """Return True if the cache is currently being warmed up."""
+    return _warming
 
 
 def get_3x_analysis() -> dict | None:
@@ -27,12 +38,13 @@ def get_3x_analysis() -> dict | None:
 
 
 def set_3x_analysis(data: dict) -> None:
-    """Store analysis result in cache."""
+    """Store analysis result in memory and persist to disk."""
     global _cache, _cache_timestamp
     with _cache_lock:
         _cache = data
         _cache_timestamp = time.time()
     log.info("3x analysis cached (%d keys)", len(data))
+    _save_to_disk(data)
 
 
 def invalidate_cache() -> None:
@@ -42,6 +54,56 @@ def invalidate_cache() -> None:
         _cache = {}
         _cache_timestamp = 0
     log.info("3x analysis cache invalidated")
+
+
+def _save_to_disk(data: dict) -> None:
+    """Persist cache to disk so it survives restarts."""
+    try:
+        _DISK_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _DISK_CACHE_PATH.write_bytes(pickle.dumps(data))
+        log.info("Cache persisted to %s", _DISK_CACHE_PATH)
+    except Exception as e:
+        log.warning("Failed to persist cache to disk: %s", e)
+
+
+def _load_from_disk() -> dict | None:
+    """Load cache from disk if available."""
+    try:
+        if _DISK_CACHE_PATH.exists():
+            data = pickle.loads(_DISK_CACHE_PATH.read_bytes())
+            log.info("Cache loaded from disk (%d keys)", len(data))
+            return data
+    except Exception as e:
+        log.warning("Failed to load cache from disk: %s", e)
+    return None
+
+
+def warm_cache() -> None:
+    """Pre-warm the cache: load from disk first, then recompute if possible.
+
+    Called at startup to ensure the screener is ready immediately.
+    """
+    global _warming
+
+    _warming = True
+    try:
+        # Try disk cache first for instant availability
+        disk_data = _load_from_disk()
+        if disk_data:
+            set_3x_analysis(disk_data)
+
+        # Then recompute in the background to ensure freshness
+        try:
+            compute_and_cache()
+        except FileNotFoundError:
+            if not disk_data:
+                log.info("No Bloomberg data and no disk cache - screener unavailable")
+        except Exception as e:
+            log.warning("Cache warm recompute failed: %s", e)
+            if disk_data:
+                log.info("Serving stale disk cache while recompute failed")
+    finally:
+        _warming = False
 
 
 def compute_and_cache() -> dict:

@@ -27,7 +27,12 @@
   <a href="/screener/evaluate" class="pill{% if tab == 'evaluate' %} active{% endif %}">Evaluate</a>
 </div>
 
-{% if not data_available %}
+{% if cache_warming is defined and cache_warming %}
+<div class="what-changed" style="background:#e3f2fd; border-color:var(--blue);">
+  <h2>Data is loading...</h2>
+  <p>The screener cache is warming up. This page will be ready shortly. Please refresh in a few seconds.</p>
+</div>
+{% elif not data_available %}
 <div class="what-changed" style="background:#fff3e0; border-color:var(--orange);">
   <h2>No Bloomberg data available</h2>
   <p>Upload Bloomberg .xlsx from the <a href="/admin/">Admin panel</a> to generate 3x/4x recommendations.</p>
