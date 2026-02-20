@@ -82,7 +82,7 @@
 {% block market_scripts %}
 <script>
 function selectUnderlier(name) {
-  var type = '{{ underlier_type }}';
+  var type = '{{ underlier_type|default("income") }}';
   // AJAX update
   fetch('/market/api/underlier?type=' + encodeURIComponent(type) + '&underlier=' + encodeURIComponent(name))
     .then(function(r) { return r.json(); })

@@ -18,10 +18,10 @@
     <option value="{{ cat }}" {{ 'selected' if category == cat else '' }}>{{ cat }}</option>
     {% endfor %}
   </select>
-  <span class="kpi-value">{{ summary.total_aum_fmt }} total AUM</span>
+  {% if summary %}<span class="kpi-value">{{ summary.total_aum_fmt }} total AUM</span>{% endif %}
 </div>
 
-{% if summary.products %}
+{% if summary and summary.products %}
 <div class="treemap-container">
   <canvas id="treemapChart"></canvas>
 </div>
