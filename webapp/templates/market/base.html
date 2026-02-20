@@ -19,6 +19,7 @@
     <a href="/market/underlier" class="pill {% if active_tab == 'underlier' %}active{% endif %}">Underlier</a>
   </div>
 </div>
+{% if data_as_of %}<div class="market-data-date">Data as of {{ data_as_of }}</div>{% endif %}
 
 {% if not available %}
 <div class="alert alert-warning">
