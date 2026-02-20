@@ -1,5 +1,5 @@
 {# Suite card partial. Pass `suite` dict. #}
-<a href="/market/category?cat={{ suite.name|urlencode }}" class="suite-card">
+<a href="/market/category?cat={{ suite.name|urlencode }}" class="suite-card" data-suite="{{ suite.name }}">
   <div class="suite-header">
     <h3 class="suite-name">{{ suite.name }}</h3>
     <span class="suite-share">{{ suite.market_share }}% share</span>
@@ -24,6 +24,11 @@
     {% for m in suite.top_movers %}
     <span class="mover {{ 'positive' if m.flow_raw > 0 else 'negative' if m.flow_raw < 0 else '' }}">{{ m.ticker }} ({{ m.flow }})</span>{% if not loop.last %}, {% endif %}
     {% endfor %}
+  </div>
+  {% endif %}
+  {% if suite.sparkline_data and suite.sparkline_data|sum > 0 %}
+  <div class="sparkline-wrapper">
+    <canvas id="sparkline-{{ suite.short_name|replace(' ', '-') }}" class="sparkline-canvas"></canvas>
   </div>
   {% endif %}
 </a>

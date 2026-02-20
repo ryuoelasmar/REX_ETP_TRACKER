@@ -1,6 +1,8 @@
 {% set active_tab = 'rex' %}
 {% extends "market/base.html" %}
 
+{% block title %}REX View — REX Financial Intelligence Hub{% endblock %}
+
 {% block market_content %}
 {% if summary %}
 
@@ -21,8 +23,26 @@
   </div>
 </div>
 
+{# ETF/ETN Filter Toggle #}
+<div class="product-type-filter">
+  <a href="/market/rex?product_type=All" class="filter-btn {{ 'active' if product_type == 'All' else '' }}">All</a>
+  <a href="/market/rex?product_type=ETF" class="filter-btn {{ 'active' if product_type == 'ETF' else '' }}">ETF</a>
+  <a href="/market/rex?product_type=ETN" class="filter-btn {{ 'active' if product_type == 'ETN' else '' }}">ETN</a>
+</div>
+
 {# Suite Cards #}
 <h2 class="section-title">REX Suites</h2>
+
+{# Suite show/hide checkboxes #}
+<div class="suite-filter" id="suiteFilter">
+  {% for suite in summary.suites %}
+  <label>
+    <input type="checkbox" checked data-suite="{{ suite.name }}" onchange="toggleSuite(this)">
+    {{ suite.short_name }}
+  </label>
+  {% endfor %}
+</div>
+
 <div class="suite-cards">
   {% for suite in summary.suites %}
   {% with suite=suite %}
@@ -52,6 +72,21 @@ document.addEventListener('DOMContentLoaded', function() {
     {label: 'REX AUM', data: trendData.values, color: '#1E40AF'}
   ]);
   {% endif %}
+
+  // Sparklines
+  {% for suite in summary.suites %}
+  {% if suite.sparkline_data %}
+  MarketCharts.renderSparkline('sparkline-{{ suite.short_name|replace(" ", "-") }}', {{ suite.sparkline_data|tojson }});
+  {% endif %}
+  {% endfor %}
 });
+
+function toggleSuite(checkbox) {
+  var suiteName = checkbox.getAttribute('data-suite');
+  var cards = document.querySelectorAll('.suite-card[data-suite="' + suiteName + '"]');
+  cards.forEach(function(card) {
+    card.style.display = checkbox.checked ? '' : 'none';
+  });
+}
 </script>
 {% endblock %}
