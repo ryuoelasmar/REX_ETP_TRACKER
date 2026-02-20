@@ -90,12 +90,17 @@ def downloads_page(request: Request, db: Session = Depends(get_db)):
 
     all_trusts = sorted(all_trusts_raw, key=_sort_key)
 
+    # Build a lookup of trust_files by trust_name for template use
+    trust_files_map = {tf["trust_name"]: tf["files"] for tf in trust_files}
+
     return templates.TemplateResponse("downloads.html", {
         "request": request,
         "summary_files": summary_files,
         "trust_files": trust_files,
+        "trust_files_map": trust_files_map,
         "digest_files": digest_files,
         "all_trusts": all_trusts,
+        "total_trust_count": len(all_trusts),
     })
 
 
@@ -145,6 +150,54 @@ def export_funds_csv(db: Session = Depends(get_db)):
         iter([buf.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=funds_export.csv"},
+    )
+
+
+@router.get("/export/filings")
+def export_filings_csv(db: Session = Depends(get_db)):
+    """Live CSV export of all filings across all trusts."""
+    results = db.execute(
+        select(
+            Filing,
+            Trust.name.label("trust_name"),
+            FundExtraction.series_name,
+            FundExtraction.class_name,
+            FundExtraction.ticker,
+            FundExtraction.effective_date,
+            FundExtraction.confidence,
+        )
+        .join(Trust, Trust.id == Filing.trust_id)
+        .outerjoin(FundExtraction, FundExtraction.filing_id == Filing.id)
+        .order_by(Trust.name, Filing.filing_date.desc())
+    ).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "Trust", "Filing Date", "Form", "Accession Number",
+        "Series Name", "Class Name", "Ticker",
+        "Effective Date", "Confidence", "Primary Link",
+    ])
+    for row in results:
+        f = row.Filing
+        writer.writerow([
+            row.trust_name,
+            f.filing_date or "",
+            f.form or "",
+            f.accession_number or "",
+            row.series_name or "",
+            row.class_name or "",
+            row.ticker or "",
+            row.effective_date or "",
+            row.confidence or "",
+            f.primary_link or "",
+        ])
+
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=filings_export.csv"},
     )
 
 

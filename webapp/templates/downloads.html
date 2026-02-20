@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Downloads - ETP Filing Tracker{% endblock %}
+{% block title %}Downloads — REX Financial Intelligence Hub{% endblock %}
 
 {% block content %}
 <div class="header">
@@ -7,28 +7,81 @@
   <div class="date">Export data for offline analysis</div>
 </div>
 
-<!-- Live Export -->
+<!-- Section 1: Global Live Exports -->
 <div class="section-header">
-  <h2>Live Exports</h2>
+  <h2>Live Data Exports</h2>
 </div>
-<div style="border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:24px; background:var(--light);">
-  <div style="display:flex; justify-content:space-between; align-items:center;">
-    <div>
-      <strong>All Funds (CSV)</strong>
-      <div style="font-size:13px; color:var(--gray); margin-top:2px;">
-        Live export of all fund statuses from the database. Includes trust, ticker, status, effective date, and latest filing info.
-      </div>
-    </div>
-    <a href="/downloads/export/funds" class="btn btn-primary btn-sm" style="white-space:nowrap;">Download CSV</a>
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:16px; margin-bottom:24px;">
+  <div style="border:1px solid var(--border); border-radius:8px; padding:20px; background:var(--light);">
+    <h3 style="margin:0 0 6px 0; font-size:16px;">All Funds</h3>
+    <p style="font-size:13px; color:var(--gray); margin:0 0 12px 0;">Current fund status for all ~7,000 ETF funds across all trusts.</p>
+    <a href="/downloads/export/funds" class="btn btn-primary btn-sm">Download CSV</a>
+  </div>
+  <div style="border:1px solid var(--border); border-radius:8px; padding:20px; background:var(--light);">
+    <h3 style="margin:0 0 6px 0; font-size:16px;">All Filings</h3>
+    <p style="font-size:13px; color:var(--gray); margin:0 0 12px 0;">Complete filing history with fund extractions across all trusts.</p>
+    <a href="/downloads/export/filings" class="btn btn-primary btn-sm">Download CSV</a>
   </div>
 </div>
 
-<!-- Summary Files -->
-{% if summary_files %}
+<!-- Section 2: Per-Trust Data -->
+{% if all_trusts %}
 <div class="section-header">
-  <h2>Summary Reports</h2>
-  <span class="badge">{{ summary_files|length }}</span>
+  <h2>Per-Trust Data</h2>
+  <span class="badge">{{ total_trust_count }} trusts</span>
 </div>
+<div class="filter-bar" style="margin-bottom:16px;">
+  <input type="text" id="trustSearch" placeholder="Search trust name..." oninput="filterTrusts(this.value)" style="width:300px;">
+  <span id="trustMatchCount" style="font-size:13px; color:var(--gray);"></span>
+</div>
+<div id="trustAccordion">
+  {% for t in all_trusts %}
+  <details class="trust-detail" data-name="{{ t.name|lower }}" style="border:1px solid var(--border); border-radius:8px; margin-bottom:8px; background:var(--light);">
+    <summary style="padding:12px 16px; cursor:pointer; font-weight:600; font-size:14px;">
+      {{ t.name }}
+      {% if t.is_rex %}
+      <span style="background:var(--navy); color:white; font-size:10px; padding:1px 6px; border-radius:8px; margin-left:6px;">[REX]</span>
+      {% endif %}
+    </summary>
+    <div style="padding:8px 16px 16px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+        <a href="/downloads/export/trust/{{ t.id }}/filings" class="btn btn-sm">Fund Status CSV</a>
+      </div>
+      {% if trust_files_map.get(t.name) %}
+      <div style="font-size:12px; color:var(--gray); margin-bottom:6px;">Pipeline files:</div>
+      <table style="margin:0;">
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Size</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in trust_files_map[t.name] %}
+          <tr>
+            <td style="font-size:13px;">{{ f.name }}</td>
+            <td style="color:var(--gray); font-size:13px;">{{ f.size }}</td>
+            <td><a href="/downloads/file?path={{ f.path }}" class="btn btn-sm">Download</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+  </details>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Section 3: Other Files -->
+{% if summary_files or digest_files %}
+<div class="section-header" style="margin-top:24px;">
+  <h2>Other Files</h2>
+</div>
+
+{% if summary_files %}
+<h3 style="font-size:14px; margin-bottom:8px;">Summary Reports</h3>
 <table>
   <thead>
     <tr>
@@ -49,11 +102,8 @@
 </table>
 {% endif %}
 
-<!-- Daily Digest -->
 {% if digest_files %}
-<div class="section-header" style="margin-top:24px;">
-  <h2>Daily Digest</h2>
-</div>
+<h3 style="font-size:14px; margin-bottom:8px; margin-top:16px;">Daily Digest</h3>
 <table>
   <thead>
     <tr>
@@ -73,71 +123,9 @@
   </tbody>
 </table>
 {% endif %}
-
-<!-- Per-Trust CSVs -->
-{% if trust_files %}
-<div class="section-header" style="margin-top:24px;">
-  <h2>Per-Trust Data</h2>
-  <span class="badge">{{ trust_files|length }} trusts</span>
-</div>
-
-{% for trust in trust_files %}
-<details style="border:1px solid var(--border); border-radius:8px; margin-bottom:8px; background:var(--light);">
-  <summary style="padding:12px 16px; cursor:pointer; font-weight:600; font-size:14px;">
-    {{ trust.trust_name }} <span style="color:var(--gray); font-weight:400; font-size:12px;">({{ trust.files|length }} files)</span>
-  </summary>
-  <table style="margin:0;">
-    <thead>
-      <tr>
-        <th>File</th>
-        <th>Size</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for f in trust.files %}
-      <tr>
-        <td style="font-size:13px;">{{ f.name }}</td>
-        <td style="color:var(--gray); font-size:13px;">{{ f.size }}</td>
-        <td><a href="/downloads/file?path={{ f.path }}" class="btn btn-sm">Download</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</details>
-{% endfor %}
 {% endif %}
 
-<!-- Trust Filing Exports (from DB) -->
-{% if all_trusts %}
-<div class="section-header" style="margin-top:24px;">
-  <h2>Trust Filing Exports</h2>
-  <span class="badge" id="dl-trust-count">{{ all_trusts|length }} trusts</span>
-</div>
-<p style="font-size:13px; color:var(--gray); margin-bottom:12px;">
-  Download all SEC filings and extracted fund data for a specific trust as CSV.
-</p>
-<div class="filter-bar" style="margin-bottom:16px;">
-  <input type="text" id="dl-search" placeholder="Search trusts..." style="width:300px;">
-  <span class="count" id="dl-match-count"></span>
-</div>
-<div id="dl-trust-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; margin-bottom:12px;">
-  {% for t in all_trusts %}
-  <div class="dl-trust-card" data-name="{{ t.name|lower }}" style="border:1px solid var(--border); border-radius:8px; padding:16px; background:var(--light); display:flex; justify-content:space-between; align-items:center;">
-    <div>
-      <strong style="font-size:14px;">{{ t.name }}</strong>
-      {% if t.is_rex %}
-      <span style="background:var(--navy); color:white; font-size:10px; padding:1px 6px; border-radius:8px; margin-left:6px;">[REX]</span>
-      {% endif %}
-    </div>
-    <a href="/downloads/export/trust/{{ t.id }}/filings" class="btn btn-sm" style="white-space:nowrap;">Download CSV</a>
-  </div>
-  {% endfor %}
-</div>
-<div id="dl-pagination" style="display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:24px;"></div>
-{% endif %}
-
-{% if not summary_files and not trust_files and not digest_files and not all_trusts %}
+{% if not summary_files and not digest_files and not all_trusts %}
 <div style="text-align:center; padding:40px; color:var(--gray);">
   <p>No files available yet. Run the pipeline to generate output files.</p>
 </div>
@@ -146,68 +134,25 @@
 
 {% block scripts %}
 <script>
-(function() {
-  var PAGE_SIZE = 50;
-  var currentPage = 1;
-  var cards = Array.from(document.querySelectorAll('.dl-trust-card'));
-  if (!cards.length) return;
-
-  var searchInput = document.getElementById('dl-search');
-  var pagination = document.getElementById('dl-pagination');
-  var matchCount = document.getElementById('dl-match-count');
-  var trustCount = document.getElementById('dl-trust-count');
-  var filtered = cards.slice();
-
-  function render() {
-    var totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-    if (currentPage > totalPages) currentPage = totalPages;
-
-    var start = (currentPage - 1) * PAGE_SIZE;
-    var end = start + PAGE_SIZE;
-    var visible = new Set(filtered.slice(start, end));
-
-    cards.forEach(function(c) { c.style.display = visible.has(c) ? '' : 'none'; });
-
-    matchCount.textContent = filtered.length + ' of ' + cards.length;
-    trustCount.textContent = filtered.length + ' trusts';
-
-    // Pagination controls
-    var html = '';
-    if (totalPages > 1) {
-      html += '<button class="btn btn-sm" ' + (currentPage <= 1 ? 'disabled style="opacity:0.4;cursor:default"' : '') + ' data-page="' + (currentPage - 1) + '">Prev</button>';
-      for (var i = 1; i <= totalPages; i++) {
-        if (i === currentPage) {
-          html += '<span style="padding:4px 10px;background:var(--navy);color:white;border-radius:4px;font-size:12px;font-weight:600;">' + i + '</span>';
-        } else {
-          html += '<button class="btn btn-sm" data-page="' + i + '">' + i + '</button>';
-        }
-      }
-      html += '<button class="btn btn-sm" ' + (currentPage >= totalPages ? 'disabled style="opacity:0.4;cursor:default"' : '') + ' data-page="' + (currentPage + 1) + '">Next</button>';
-    }
-    pagination.innerHTML = html;
-  }
-
-  function applySearch() {
-    var q = searchInput.value.trim().toLowerCase();
-    if (!q) {
-      filtered = cards.slice();
+function filterTrusts(q) {
+  q = q.trim().toLowerCase();
+  var details = document.querySelectorAll('.trust-detail');
+  var shown = 0;
+  var total = details.length;
+  details.forEach(function(el) {
+    if (!q || el.getAttribute('data-name').indexOf(q) !== -1) {
+      el.style.display = '';
+      shown++;
     } else {
-      filtered = cards.filter(function(c) { return c.getAttribute('data-name').indexOf(q) !== -1; });
-    }
-    currentPage = 1;
-    render();
-  }
-
-  searchInput.addEventListener('input', applySearch);
-  pagination.addEventListener('click', function(e) {
-    var btn = e.target.closest('[data-page]');
-    if (btn && !btn.disabled) {
-      currentPage = parseInt(btn.getAttribute('data-page'), 10);
-      render();
+      el.style.display = 'none';
     }
   });
-
-  render();
-})();
+  var countEl = document.getElementById('trustMatchCount');
+  if (q) {
+    countEl.textContent = shown + ' of ' + total + ' trusts';
+  } else {
+    countEl.textContent = '';
+  }
+}
 </script>
 {% endblock %}
