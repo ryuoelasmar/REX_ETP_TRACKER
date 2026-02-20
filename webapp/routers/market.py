@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -46,7 +46,7 @@ def _parse_ts(ts: dict) -> dict[str, Any]:
 
 
 @router.get("/rex")
-def rex_view(request: Request):
+def rex_view(request: Request, product_type: str = Query(default="All")):
     """REX View - executive dashboard by suite."""
     svc = _svc()
     available = svc.data_available()
@@ -54,6 +54,7 @@ def rex_view(request: Request):
         return templates.TemplateResponse("market/rex.html", {
             "request": request,
             "available": False,
+            "active_tab": "rex",
         })
     try:
         summary = svc.get_rex_summary()
@@ -61,14 +62,17 @@ def rex_view(request: Request):
         return templates.TemplateResponse("market/rex.html", {
             "request": request,
             "available": True,
+            "active_tab": "rex",
             "summary": summary,
             "trend": trend,
+            "product_type": product_type,
         })
     except Exception as e:
         log.error("REX view error: %s", e, exc_info=True)
         return templates.TemplateResponse("market/rex.html", {
             "request": request,
             "available": False,
+            "active_tab": "rex",
             "error": str(e),
         })
 
@@ -86,6 +90,7 @@ def category_view(
         return templates.TemplateResponse("market/category.html", {
             "request": request,
             "available": False,
+            "active_tab": "category",
             "categories": svc.ALL_CATEGORIES,
             "category": cat,
         })
@@ -104,6 +109,7 @@ def category_view(
         return templates.TemplateResponse("market/category.html", {
             "request": request,
             "available": True,
+            "active_tab": "category",
             "categories": svc.ALL_CATEGORIES,
             "category": cat,
             "summary": summary,
@@ -116,13 +122,83 @@ def category_view(
         return templates.TemplateResponse("market/category.html", {
             "request": request,
             "available": False,
+            "active_tab": "category",
             "categories": svc.ALL_CATEGORIES,
             "category": cat,
             "error": str(e),
         })
 
 
-#  API endpoints (AJAX) 
+@router.get("/treemap")
+def treemap_view(request: Request, cat: str = Query(default="All")):
+    svc = _svc()
+    available = svc.data_available()
+    if not available:
+        return templates.TemplateResponse("market/treemap.html", {"request": request, "available": False, "active_tab": "treemap", "categories": svc.ALL_CATEGORIES})
+    try:
+        cat_arg = cat if cat != "All" else None
+        summary = svc.get_treemap_data(cat_arg)
+        return templates.TemplateResponse("market/treemap.html", {
+            "request": request, "available": True, "active_tab": "treemap",
+            "summary": summary, "categories": svc.ALL_CATEGORIES, "category": cat,
+        })
+    except Exception as e:
+        log.error("Treemap error: %s", e, exc_info=True)
+        return templates.TemplateResponse("market/treemap.html", {"request": request, "available": False, "active_tab": "treemap", "categories": svc.ALL_CATEGORIES, "error": str(e)})
+
+
+@router.get("/issuer")
+def issuer_view(request: Request, cat: str = Query(default="All")):
+    svc = _svc()
+    available = svc.data_available()
+    if not available:
+        return templates.TemplateResponse("market/issuer.html", {"request": request, "available": False, "active_tab": "issuer", "categories": svc.ALL_CATEGORIES})
+    try:
+        cat_arg = cat if cat != "All" else None
+        summary = svc.get_issuer_summary(cat_arg)
+        return templates.TemplateResponse("market/issuer.html", {
+            "request": request, "available": True, "active_tab": "issuer",
+            "summary": summary, "categories": svc.ALL_CATEGORIES, "category": cat,
+        })
+    except Exception as e:
+        log.error("Issuer view error: %s", e, exc_info=True)
+        return templates.TemplateResponse("market/issuer.html", {"request": request, "available": False, "active_tab": "issuer", "categories": svc.ALL_CATEGORIES, "error": str(e)})
+
+
+@router.get("/share")
+def share_timeline_view(request: Request):
+    svc = _svc()
+    available = svc.data_available()
+    if not available:
+        return templates.TemplateResponse("market/share_timeline.html", {"request": request, "available": False, "active_tab": "share"})
+    try:
+        timeline = svc.get_market_share_timeline()
+        return templates.TemplateResponse("market/share_timeline.html", {
+            "request": request, "available": True, "active_tab": "share", "timeline": timeline,
+        })
+    except Exception as e:
+        log.error("Share timeline error: %s", e, exc_info=True)
+        return templates.TemplateResponse("market/share_timeline.html", {"request": request, "available": False, "active_tab": "share", "error": str(e)})
+
+
+@router.get("/underlier")
+def underlier_view(request: Request, type: str = Query(default="income"), underlier: str = Query(default=None)):
+    svc = _svc()
+    available = svc.data_available()
+    if not available:
+        return templates.TemplateResponse("market/underlier.html", {"request": request, "available": False, "active_tab": "underlier"})
+    try:
+        summary = svc.get_underlier_summary(type, underlier)
+        return templates.TemplateResponse("market/underlier.html", {
+            "request": request, "available": True, "active_tab": "underlier",
+            "summary": summary, "underlier_type": type, "selected_underlier": underlier,
+        })
+    except Exception as e:
+        log.error("Underlier view error: %s", e, exc_info=True)
+        return templates.TemplateResponse("market/underlier.html", {"request": request, "available": False, "active_tab": "underlier", "error": str(e)})
+
+
+#  API endpoints (AJAX)
 
 @router.get("/api/rex-summary")
 def api_rex_summary():
@@ -179,6 +255,42 @@ def api_slicers(category: str):
     try:
         svc = _svc()
         return JSONResponse(svc.get_slicer_options(category))
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.get("/api/treemap")
+def api_treemap(category: str = Query(default="All")):
+    try:
+        svc = _svc()
+        cat = category if category != "All" else None
+        return JSONResponse(svc.get_treemap_data(cat))
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.get("/api/issuer")
+def api_issuer(category: str = Query(default="All")):
+    try:
+        svc = _svc()
+        cat = category if category != "All" else None
+        return JSONResponse(svc.get_issuer_summary(cat))
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.get("/api/share")
+def api_share():
+    try:
+        return JSONResponse(_svc().get_market_share_timeline())
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.get("/api/underlier")
+def api_underlier(type: str = Query(default="income"), underlier: str = Query(default=None)):
+    try:
+        return JSONResponse(_svc().get_underlier_summary(type, underlier))
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
