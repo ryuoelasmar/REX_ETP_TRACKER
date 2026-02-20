@@ -133,9 +133,11 @@ def get_kpis(df: pd.DataFrame) -> dict:
     flow_1m = float(df["t_w4.fund_flow_1month"].sum()) if "t_w4.fund_flow_1month" in df.columns else 0.0
     flow_3m = float(df["t_w4.fund_flow_3month"].sum()) if "t_w4.fund_flow_3month" in df.columns else 0.0
     count = int(len(df))
+    aum_fmt = _fmt_currency(total_aum)
     return {
         "total_aum": total_aum,
-        "total_aum_fmt": _fmt_currency(total_aum),
+        "total_aum_fmt": aum_fmt,
+        "aum_fmt": aum_fmt,          # alias for templates/JS
         "flow_1w": flow_1w,
         "flow_1w_fmt": _fmt_flow(flow_1w),
         "flow_1m": flow_1m,
@@ -143,6 +145,7 @@ def get_kpis(df: pd.DataFrame) -> dict:
         "flow_3m": flow_3m,
         "flow_3m_fmt": _fmt_flow(flow_3m),
         "count": count,
+        "num_products": count,       # alias for templates/JS
         "flow_1w_positive": flow_1w >= 0,
         "flow_1m_positive": flow_1m >= 0,
         "flow_3m_positive": flow_3m >= 0,
@@ -186,11 +189,14 @@ def get_rex_summary() -> dict:
             flow = float(row.get("t_w4.fund_flow_1week", 0))
             if flow == 0:
                 continue
+            fmt = _fmt_flow(flow)
             top_movers.append({
                 "ticker": str(row.get("ticker", "")),
                 "fund_name": str(row.get("fund_name", "")),
                 "flow_1w": flow,
-                "flow_1w_fmt": _fmt_flow(flow),
+                "flow_1w_fmt": fmt,
+                "flow": fmt,       # alias for _suite_card.html
+                "flow_raw": flow,  # alias for _suite_card.html
                 "positive": flow >= 0,
             })
         # Add bottom movers if not already there
@@ -199,11 +205,14 @@ def get_rex_summary() -> dict:
             ticker = str(row.get("ticker", ""))
             if flow == 0 or any(m["ticker"] == ticker for m in top_movers):
                 continue
+            fmt = _fmt_flow(flow)
             top_movers.append({
                 "ticker": ticker,
                 "fund_name": str(row.get("fund_name", "")),
                 "flow_1w": flow,
-                "flow_1w_fmt": _fmt_flow(flow),
+                "flow_1w_fmt": fmt,
+                "flow": fmt,       # alias for _suite_card.html
+                "flow_raw": flow,  # alias for _suite_card.html
                 "positive": flow >= 0,
             })
 
@@ -224,10 +233,12 @@ def get_rex_summary() -> dict:
     pie_values = [round(s["kpis"]["total_aum"], 2) for s in suites]
 
     return {
-        "overall": overall,
+        "kpis": overall,     # renamed: templates use summary.kpis
+        "overall": overall,  # kept for backwards compat
         "suites": suites,
         "pie_labels": json.dumps(pie_labels),
         "pie_values": json.dumps(pie_values),
+        "pie_data": {"labels": pie_labels, "values": pie_values},  # for templates
     }
 
 
@@ -343,7 +354,11 @@ def get_category_summary(category: str | None, filters: dict | None = None) -> d
         aum = float(row.get("t_w4.aum", 0))
         flow_1w = float(row.get("t_w4.fund_flow_1week", 0))
         flow_1m = float(row.get("t_w4.fund_flow_1month", 0))
-        yield_val = row.get("t_w3.annualized_yield")
+        raw_yield = row.get("t_w3.annualized_yield")
+        try:
+            yield_val = float(raw_yield) if raw_yield is not None and not (isinstance(raw_yield, float) and math.isnan(raw_yield)) else None
+        except (TypeError, ValueError):
+            yield_val = None
         top_products.append({
             "rank": rank,
             "ticker": str(row.get("ticker", "")),
@@ -357,7 +372,8 @@ def get_category_summary(category: str | None, filters: dict | None = None) -> d
             "flow_1m": flow_1m,
             "flow_1m_fmt": _fmt_flow(flow_1m),
             "flow_1m_positive": flow_1m >= 0,
-            "yield_fmt": f"{float(yield_val):.2f}%" if yield_val and not (isinstance(yield_val, float) and math.isnan(yield_val)) else "",
+            "yield_val": yield_val,  # raw float for template formatting
+            "yield_fmt": f"{yield_val:.2f}%" if yield_val is not None else "",
             "is_rex": bool(row.get("is_rex", False)),
             "category": str(row.get("category_display", "")),
         })
@@ -372,6 +388,11 @@ def get_category_summary(category: str | None, filters: dict | None = None) -> d
         flow_3m = float(row.get("t_w4.fund_flow_3month", 0))
         # Rank in full category
         rank_in_cat = int((df["t_w4.aum"] > aum).sum()) + 1
+        raw_yield_r = row.get("t_w3.annualized_yield")
+        try:
+            yield_val_r = float(raw_yield_r) if raw_yield_r is not None and not (isinstance(raw_yield_r, float) and math.isnan(raw_yield_r)) else None
+        except (TypeError, ValueError):
+            yield_val_r = None
         rex_products.append({
             "ticker": str(row.get("ticker", "")),
             "fund_name": str(row.get("fund_name", "")),
@@ -387,6 +408,9 @@ def get_category_summary(category: str | None, filters: dict | None = None) -> d
             "flow_3m_fmt": _fmt_flow(flow_3m),
             "flow_3m_positive": flow_3m >= 0,
             "rank_in_cat": rank_in_cat,
+            "rank": rank_in_cat,  # alias for templates
+            "yield_val": yield_val_r,
+            "yield_fmt": f"{yield_val_r:.2f}%" if yield_val_r is not None else "",
         })
 
     # Issuer breakdown (for bar chart)
@@ -408,11 +432,17 @@ def get_category_summary(category: str | None, filters: dict | None = None) -> d
         "rex_kpis": rex_kpis,
         "market_share": round(market_share, 1),
         "market_share_fmt": f"{market_share:.1f}%",
+        "rex_share": round(market_share, 1),  # alias for templates
         "top_products": top_products,
         "rex_products": rex_products,
         "issuer_labels": json.dumps(issuer_labels),
         "issuer_values": json.dumps(issuer_values),
         "issuer_is_rex": json.dumps(issuer_is_rex),
+        "issuer_data": {  # structured dict for templates/JS
+            "labels": issuer_labels,
+            "values": issuer_values,
+            "is_rex": issuer_is_rex,
+        },
         "total_funds": len(df),
     }
 

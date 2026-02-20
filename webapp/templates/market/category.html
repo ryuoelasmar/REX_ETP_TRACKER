@@ -6,7 +6,7 @@
 <div class="category-selector">
   <label for="categorySelect">Category:</label>
   <select id="categorySelect" onchange="MarketFilters.onCategoryChange(this.value)">
-    <option value="All" {{ 'selected' if category == 'All' else '' }}>All Categories</option>
+    <option value="All" {{ 'selected' if (category is not defined or category == 'All') else '' }}>All Categories</option>
     {% for cat in categories %}
     <option value="{{ cat }}" {{ 'selected' if category == cat else '' }}>{{ cat }}</option>
     {% endfor %}
@@ -18,20 +18,12 @@
   {% for slicer in slicers %}
   <div class="slicer-group" data-field="{{ slicer.field }}">
     <label>{{ slicer.label }}:</label>
-    {% if slicer.type == 'dropdown' %}
     <select onchange="MarketFilters.applyFilters()">
       <option value="">All</option>
       {% for opt in slicer.options %}
       <option value="{{ opt }}">{{ opt }}</option>
       {% endfor %}
     </select>
-    {% elif slicer.type == 'multi-select' %}
-    <select multiple onchange="MarketFilters.applyFilters()" size="1">
-      {% for opt in slicer.options %}
-      <option value="{{ opt }}">{{ opt }}</option>
-      {% endfor %}
-    </select>
-    {% endif %}
   </div>
   {% endfor %}
 </div>
@@ -94,7 +86,7 @@
 
 {# REX Products Panel #}
 {% if summary.rex_products %}
-<h2 class="section-title">REX Products in {{ category }}</h2>
+<h2 class="section-title">REX Products in {{ category or 'All Categories' }}</h2>
 <div class="table-responsive">
   <table class="data-table rex-table" id="rexProducts">
     <thead>

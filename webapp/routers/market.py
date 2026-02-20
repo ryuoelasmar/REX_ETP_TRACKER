@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -36,30 +37,38 @@ def market_index():
     return RedirectResponse("/market/rex", status_code=302)
 
 
+def _parse_ts(ts: dict) -> dict[str, Any]:
+    """Convert get_time_series() JSON strings to raw lists for templates."""
+    return {
+        "labels": json.loads(ts["labels"]),
+        "values": json.loads(ts["values"]),
+    }
+
+
 @router.get("/rex")
 def rex_view(request: Request):
     """REX View - executive dashboard by suite."""
     svc = _svc()
-    if not svc.data_available():
+    available = svc.data_available()
+    if not available:
         return templates.TemplateResponse("market/rex.html", {
             "request": request,
-            "data_available": False,
+            "available": False,
         })
     try:
         summary = svc.get_rex_summary()
-        ts_rex = svc.get_time_series(is_rex=True)
+        trend = _parse_ts(svc.get_time_series(is_rex=True))
         return templates.TemplateResponse("market/rex.html", {
             "request": request,
-            "data_available": True,
+            "available": True,
             "summary": summary,
-            "ts_labels": ts_rex["labels"],
-            "ts_values": ts_rex["values"],
+            "trend": trend,
         })
     except Exception as e:
         log.error("REX view error: %s", e, exc_info=True)
         return templates.TemplateResponse("market/rex.html", {
             "request": request,
-            "data_available": False,
+            "available": False,
             "error": str(e),
         })
 
@@ -72,39 +81,43 @@ def category_view(
 ):
     """Category View - competitive landscape with dynamic filters."""
     svc = _svc()
-    if not svc.data_available():
+    available = svc.data_available()
+    if not available:
         return templates.TemplateResponse("market/category.html", {
             "request": request,
-            "data_available": False,
+            "available": False,
             "categories": svc.ALL_CATEGORIES,
-            "selected_cat": cat,
+            "category": cat,
         })
     try:
         filter_dict = json.loads(filters) if filters else {}
-        summary = svc.get_category_summary(cat if cat != "All" else None, filter_dict)
+        cat_arg = cat if cat != "All" else None
+        summary = svc.get_category_summary(cat_arg, filter_dict)
         slicers = svc.get_slicer_options(cat) if cat and cat != "All" else []
-        ts_cat = svc.get_time_series(category=cat if cat != "All" else None)
-        ts_rex = svc.get_time_series(category=cat if cat != "All" else None, is_rex=True)
+        ts_cat = _parse_ts(svc.get_time_series(category=cat_arg))
+        ts_rex = _parse_ts(svc.get_time_series(category=cat_arg, is_rex=True))
+        trend = {
+            "labels": ts_cat["labels"],
+            "total_values": ts_cat["values"],
+            "rex_values": ts_rex["values"],
+        }
         return templates.TemplateResponse("market/category.html", {
             "request": request,
-            "data_available": True,
+            "available": True,
             "categories": svc.ALL_CATEGORIES,
-            "selected_cat": cat,
+            "category": cat,
             "summary": summary,
             "slicers": slicers,
             "active_filters": filter_dict,
-            "ts_cat_labels": ts_cat["labels"],
-            "ts_cat_values": ts_cat["values"],
-            "ts_rex_labels": ts_rex["labels"],
-            "ts_rex_values": ts_rex["values"],
+            "trend": trend,
         })
     except Exception as e:
         log.error("Category view error: %s", e, exc_info=True)
         return templates.TemplateResponse("market/category.html", {
             "request": request,
-            "data_available": False,
+            "available": False,
             "categories": svc.ALL_CATEGORIES,
-            "selected_cat": cat,
+            "category": cat,
             "error": str(e),
         })
 
