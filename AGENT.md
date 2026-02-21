@@ -1,403 +1,225 @@
-# AGENT: Advanced-Market
-**Task**: TASK-G — Advanced Market Pages (Timeline, Calendar, Compare)
-**Branch**: feature/advanced-market
+# AGENT: Trust-Expansion
+**Task**: TASK-F — Trust Expansion (100+ New SEC Trusts)
+**Branch**: feature/trust-expansion
 **Status**: DONE
 
 ## Progress Reporting
-Write timestamped progress to: `.agents/progress/Advanced-Market.md`
-Format: `## [HH:MM] Task description` then bullet details.
+Write timestamped progress to: `.agents/progress/Trust-Expansion.md`
+Format:
+```
+## [HH:MM] Status: X/Y issuers processed
+- Added: Trust Name (CIK: XXXXXXXXXX)
+- Skipped: Issuer Name (reason)
+```
 
-## Your New Files
-- `webapp/routers/market_advanced.py` (NEW)
-- `webapp/templates/market/timeline.html` (NEW)
-- `webapp/templates/market/calendar.html` (NEW)
-- `webapp/templates/market/compare.html` (NEW)
+Update every 10 issuers processed. This is a LONG-RUNNING task.
 
-## Your Edited Files
-- `webapp/main.py` (add router registration)
-- `webapp/templates/market/base.html` (add new nav pills)
+## Your Files
+- `etp_tracker/trusts.py` (add new trusts)
+- `.agents/progress/Trust-Expansion.md` (detailed discovery report)
 
-## CRITICAL: Read These First
-Before writing anything, read:
-- `webapp/main.py` (how other routers are registered)
-- `webapp/routers/market.py` (existing pattern for market routes)
-- `webapp/templates/market/base.html` (nav structure to extend)
-- `webapp/templates/market/issuer.html` (example template pattern)
-- `webapp/models.py` (understand Trust, Filing, FundExtraction models)
-- `webapp/dependencies.py` (get_db pattern)
-- `webapp/database.py` (DB setup)
+## STEP 1: Explore the Data
 
-## Page 1: Fund Lifecycle Timeline (/market/timeline)
-
-### Router (market_advanced.py):
 ```python
-from fastapi import APIRouter, Request, Depends, Query
-from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
-from sqlalchemy import select, desc
+import pandas as pd
 from pathlib import Path
-from webapp.dependencies import get_db
 
-router = APIRouter(prefix="/market", tags=["market-advanced"])
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+# Try OneDrive path first, fall back to local
+LOCAL = Path(r"C:\Users\RyuEl-Asmar\REX Financial LLC\REX Financial LLC - Rex Financial LLC\Product Development\MasterFiles\MASTER Data\The Dashboard.xlsx")
+FALLBACK = Path("data/DASHBOARD/The Dashboard.xlsx")
+DATA_FILE = LOCAL if LOCAL.exists() else FALLBACK
 
+# Read issuers from data_import
+df = pd.read_excel(DATA_FILE, sheet_name='data_import')
+print("Columns:", df.columns.tolist()[:20])
 
-@router.get("/timeline")
-def timeline_view(
-    request: Request,
-    trust_id: int = Query(default=None),
-    db: Session = Depends(get_db)
-):
-    from webapp.models import Trust, Filing, FundExtraction
+# Find the issuer column
+issuer_col = next((c for c in df.columns if 'issuer' in str(c).lower()), None)
+print("Issuer col:", issuer_col)
 
-    # Get all trusts for selector
-    trusts = db.execute(select(Trust).order_by(Trust.name)).scalars().all()
-
-    timeline_items = []
-    selected_trust = None
-
-    if trust_id:
-        selected_trust = db.get(Trust, trust_id)
-        if selected_trust:
-            # Get filings for this trust, sorted newest first
-            filings = db.execute(
-                select(Filing)
-                .where(Filing.trust_id == trust_id)
-                .where(Filing.form_type.in_(['485BPOS', '485BXT', '485APOS', 'N-14']))
-                .order_by(desc(Filing.filing_date))
-                .limit(200)
-            ).scalars().all()
-
-            for filing in filings:
-                # Get fund extractions for this filing
-                extractions = db.execute(
-                    select(FundExtraction)
-                    .where(FundExtraction.filing_id == filing.id)
-                    .limit(10)
-                ).scalars().all()
-
-                timeline_items.append({
-                    "filing": filing,
-                    "extractions": extractions,
-                    "fund_count": len(extractions),
-                })
-
-    return templates.TemplateResponse("market/timeline.html", {
-        "request": request,
-        "active_tab": "timeline",
-        "available": True,
-        "trusts": trusts,
-        "selected_trust": selected_trust,
-        "trust_id": trust_id,
-        "timeline_items": timeline_items,
-    })
+if issuer_col:
+    issuers = df[issuer_col].dropna().unique()
+    print(f"Unique issuers: {len(issuers)}")
+    print(issuers[:30])
 ```
 
-### Template (timeline.html):
-```html
-{% set active_tab = 'timeline' %}
-{% extends "market/base.html" %}
+Write the full list of unique issuers to progress file.
 
-{% block title %}Fund Lifecycle Timeline — REX Financial Intelligence Hub{% endblock %}
+## STEP 2: Read Existing Trusts
 
-{% block market_content %}
-<h2 class="section-title">Fund Lifecycle Timeline</h2>
+Read `etp_tracker/trusts.py` to get ALL currently tracked trust names and CIKs. Build a set of existing trust slugs/names to check against.
 
-<div class="timeline-controls">
-  <select class="select-sm" onchange="if(this.value) window.location='/market/timeline?trust_id='+this.value">
-    <option value="">Select a trust...</option>
-    {% for trust in trusts %}
-    <option value="{{ trust.id }}" {{ 'selected' if trust.id == trust_id else '' }}>{{ trust.name }}</option>
-    {% endfor %}
-  </select>
-</div>
-
-{% if selected_trust %}
-<h3 class="trust-timeline-title">{{ selected_trust.name }}</h3>
-
-{% if timeline_items %}
-<div class="timeline">
-  {% for item in timeline_items %}
-  <div class="timeline-entry timeline-{{ item.filing.form_type|lower|replace('/', '-') }}">
-    <div class="timeline-date">{{ item.filing.filing_date.strftime('%b %d, %Y') if item.filing.filing_date else 'N/A' }}</div>
-    <div class="timeline-content">
-      <div class="timeline-form">
-        <span class="badge badge-{{ 'primary' if item.filing.form_type == '485BPOS' else 'warning' if item.filing.form_type == '485BXT' else 'secondary' }}">
-          {{ item.filing.form_type }}
-        </span>
-        {% if item.filing.effective_date %}
-        <span class="timeline-effective">Effective: {{ item.filing.effective_date.strftime('%b %d, %Y') }}</span>
-        {% endif %}
-      </div>
-      {% if item.fund_count > 0 %}
-      <div class="timeline-funds">{{ item.fund_count }} fund{{ 's' if item.fund_count != 1 else '' }}</div>
-      {% endif %}
-      <div class="timeline-accession">
-        <a href="https://www.sec.gov/Archives/edgar/data/{{ selected_trust.cik }}/{{ item.filing.accession_number|replace('-','') }}/{{ item.filing.accession_number }}-index.htm"
-           target="_blank" class="text-link">{{ item.filing.accession_number }}</a>
-      </div>
-    </div>
-  </div>
-  {% endfor %}
-</div>
-{% else %}
-<div class="alert alert-info">No 485 filings found for this trust.</div>
-{% endif %}
-
-{% elif trusts %}
-<div class="alert alert-info">Select a trust above to view its filing timeline.</div>
-{% endif %}
-
-{% endblock %}
-
-{% block market_scripts %}
-{% endblock %}
-```
-
-## Page 2: Compliance Calendar (/market/calendar)
-
-### Router section:
 ```python
-@router.get("/calendar")
-def calendar_view(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    from webapp.models import Trust, Filing
-    from datetime import date, timedelta
-
-    today = date.today()
-
-    # Upcoming 485BXT extensions (future effective dates)
-    upcoming = db.execute(
-        select(Filing, Trust)
-        .join(Trust, Filing.trust_id == Trust.id)
-        .where(Filing.form_type == '485BXT')
-        .where(Filing.effective_date >= today)
-        .order_by(Filing.effective_date.asc())
-        .limit(100)
-    ).all()
-
-    # Recently effective 485BPOS (last 30 days)
-    recent_cutoff = today - timedelta(days=30)
-    recently_effective = db.execute(
-        select(Filing, Trust)
-        .join(Trust, Filing.trust_id == Trust.id)
-        .where(Filing.form_type == '485BPOS')
-        .where(Filing.effective_date >= recent_cutoff)
-        .order_by(Filing.effective_date.desc())
-        .limit(50)
-    ).all()
-
-    # Add urgency classification to upcoming
-    upcoming_classified = []
-    for filing, trust in upcoming:
-        days_until = (filing.effective_date - today).days if filing.effective_date else None
-        urgency = "green"
-        if days_until is not None:
-            if days_until < 30:
-                urgency = "red"
-            elif days_until < 60:
-                urgency = "amber"
-        upcoming_classified.append({
-            "filing": filing,
-            "trust": trust,
-            "days_until": days_until,
-            "urgency": urgency,
-        })
-
-    return templates.TemplateResponse("market/calendar.html", {
-        "request": request,
-        "active_tab": "calendar",
-        "available": True,
-        "today": today,
-        "upcoming": upcoming_classified,
-        "recently_effective": [{"filing": f, "trust": t} for f, t in recently_effective],
-    })
+# In trusts.py, TRUST_CIKS looks like:
+# "trust-slug": (CIK_INT, "Full Trust Name"),
 ```
 
-### Template (calendar.html):
-```html
-{% set active_tab = 'calendar' %}
-{% extends "market/base.html" %}
+Extract ALL existing trust names (lowercase) for comparison.
 
-{% block title %}Compliance Calendar — REX Financial Intelligence Hub{% endblock %}
+## STEP 3: ETN Issuers to Skip
 
-{% block market_content %}
-<h2 class="section-title">Compliance Calendar</h2>
+These issuers file ETNs (Exchange Traded Notes), NOT 485 forms. Skip them:
+- BMO, Deutsche Bank, DB, UBS, ETRACS, JP Morgan, JPM, Barclays, Credit Suisse,
+- Citigroup, HSBC, Bank of America, BAML, Wells Fargo, Goldman Sachs, Morgan Stanley
 
-<div class="calendar-grid">
-  <div class="calendar-section">
-    <h3>Upcoming 485BXT Extensions</h3>
-    {% if upcoming %}
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Trust</th>
-          <th>Effective Date</th>
-          <th>Days Until</th>
-          <th>Accession</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in upcoming %}
-        <tr>
-          <td>{{ item.trust.name }}</td>
-          <td>{{ item.filing.effective_date.strftime('%b %d, %Y') if item.filing.effective_date else 'N/A' }}</td>
-          <td>
-            <span class="urgency-badge urgency-{{ item.urgency }}">
-              {% if item.days_until is not none %}{{ item.days_until }}d{% else %}—{% endif %}
-            </span>
-          </td>
-          <td class="text-mono" style="font-size:0.75rem">{{ item.filing.accession_number }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="alert alert-info">No upcoming extension events.</div>
-    {% endif %}
-  </div>
+Skip any issuer with these names/prefixes.
 
-  <div class="calendar-section">
-    <h3>Recently Effective (Last 30 Days)</h3>
-    {% if recently_effective %}
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Trust</th>
-          <th>Effective Date</th>
-          <th>Form</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in recently_effective %}
-        <tr>
-          <td>{{ item.trust.name }}</td>
-          <td>{{ item.filing.effective_date.strftime('%b %d, %Y') if item.filing.effective_date else 'N/A' }}</td>
-          <td><span class="badge badge-primary">{{ item.filing.form_type }}</span></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="alert alert-info">No recent effective filings.</div>
-    {% endif %}
-  </div>
-</div>
-{% endblock %}
+## STEP 4: Fund Types That Don't File 485
 
-{% block market_scripts %}
-{% endblock %}
-```
+These typically file S-1 or N-2 (not 485) — skip for 485 search but note them:
+- Interval funds (typically N-2)
+- Business Development Companies (BDC)
+- Closed-end funds (CEF)
+- Plain ETNs
 
-## Page 3: Fund Comparison (/market/compare)
+## STEP 5: EDGAR Search Process
 
-### Router section:
+For each issuer NOT already covered AND not an ETN:
+
 ```python
-@router.get("/compare")
-def compare_view(
-    request: Request,
-    tickers: str = Query(default=""),
-):
-    from webapp.services.market_data import get_master_data, data_available
+import requests
+import time
+import json
 
-    available = data_available()
-    ticker_list = [t.strip().upper() for t in tickers.split(',') if t.strip()][:4]
+HEADERS = {"User-Agent": "REX-ETP-Tracker research@rexfin.com"}
 
-    fund_data = []
-    if available and ticker_list:
-        try:
-            master = get_master_data()
-            ticker_col = next((c for c in master.columns if c.lower() == 'ticker'), None)
-            if ticker_col:
-                for ticker in ticker_list:
-                    row = master[master[ticker_col].str.upper() == ticker]
-                    if not row.empty:
-                        r = row.iloc[0]
-                        fund_data.append({
-                            "ticker": ticker,
-                            "row": r.to_dict(),
-                        })
-        except Exception:
-            pass
+def search_edgar(issuer_name: str) -> list:
+    """Search EDGAR for 485BPOS filings from this issuer."""
+    # Clean issuer name (remove /USA, /FUND PARENT, etc.)
+    clean = issuer_name.split('/')[0].strip()
 
-    return templates.TemplateResponse("market/compare.html", {
-        "request": request,
-        "active_tab": "compare",
-        "available": available,
-        "tickers": tickers,
-        "ticker_list": ticker_list,
-        "fund_data": fund_data,
-    })
+    url = f'https://efts.sec.gov/LATEST/search-index?q="{clean}"&forms=485BPOS&dateRange=custom&startdt=2020-01-01'
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        time.sleep(0.35)  # Rate limit: 10 req/s max
+        if resp.status_code != 200:
+            return []
+        data = resp.json()
+        hits = data.get('hits', {}).get('hits', [])
+        return hits
+    except Exception as e:
+        print(f"Error searching {issuer_name}: {e}")
+        return []
+
+
+def verify_cik(cik: int) -> dict:
+    """Verify CIK via submissions JSON. Returns {name, cik} or empty dict."""
+    padded = str(cik).zfill(10)
+    url = f"https://data.sec.gov/submissions/CIK{padded}.json"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        time.sleep(0.35)
+        if resp.status_code != 200:
+            return {}
+        data = resp.json()
+        return {"name": data.get("name", ""), "cik": cik}
+    except Exception:
+        return {}
 ```
 
-### Template (compare.html):
-Build a side-by-side comparison table. The template should gracefully handle missing data fields.
+For each search result:
+1. Extract `_source.entity_id` (or `_source.display_names[0]`) — this gives the entity name
+2. Extract `_source.file_num` or `_id` to get the CIK
+3. Verify the CIK via submissions JSON
+4. Check if the entity name matches the issuer (don't add wrong entities)
 
-## Register in main.py
+## STEP 6: Add Verified Trusts to trusts.py
 
-In `webapp/main.py`, after the existing market router include, add:
+Read `etp_tracker/trusts.py` carefully first. Then use `add_trust()` function (it exists in the file) OR manually add to the `TRUST_CIKS` dict.
+
+To use add_trust():
 ```python
-from webapp.routers.market_advanced import router as market_advanced_router
-app.include_router(market_advanced_router)
+from etp_tracker.trusts import add_trust
+# add_trust(cik: int, name: str, slug: str)
+# slug is lowercase-hyphenated form of name
+add_trust(1234567890, "ProShares Trust III", "proshares-trust-iii")
 ```
 
-Read main.py first to find the correct location.
+OR directly append to TRUST_CIKS dict in trusts.py — read the file to see the format.
 
-## Update market/base.html Nav Pills
+CRITICAL: NEVER ADD A TRUST WITHOUT VERIFYING THE CIK via submissions JSON. Never guess.
 
-In `webapp/templates/market/base.html`, add 3 more pills after the existing ones:
-```html
-<a href="/market/timeline" class="pill {% if active_tab == 'timeline' %}active{% endif %}">Timeline</a>
-<a href="/market/calendar" class="pill {% if active_tab == 'calendar' %}active{% endif %}">Calendar</a>
-<a href="/market/compare" class="pill {% if active_tab == 'compare' %}active{% endif %}">Compare</a>
+## STEP 7: Priority Issuers to Check
+
+These issuers are highly likely to have 485-filing trusts not yet tracked:
+
+**L&I Single Stock (high priority)**:
+- Tradr 2X Long / 2X Short funds (various trusts)
+- GraniteShares (multiple trusts)
+- Leverage Shares (UK-based, may not file US 485)
+- T-Rex 2X / 4X funds (very new issuer)
+- Bitwise (equity leveraged, separate from crypto)
+- REXSHARES (this is REX's own)
+
+**L&I Index (check for additional trusts)**:
+- ProShares may have ProShares Trust, ProShares Trust II, ProShares Trust III
+- Direxion may have multiple trusts
+- Rafferty Asset Management
+
+**Income / Covered Call**:
+- Defiance ETFs
+- Amplify ETFs
+- NEOS Investments
+- Roundhill Investments
+- YieldMax ETF Trust (check if all sub-trusts tracked)
+- Simplify Asset Management
+
+**Defined Outcome**:
+- Innovator ETFs (Innovator Capital Management — multiple series trusts)
+- First Trust Buffer ETFs (First Trust Portfolios — many trusts)
+- Pacer ETFs
+- AIM ETF Products
+
+**Crypto**:
+- 21Shares US (Bitcoin ETF)
+- Bitwise Bitcoin ETF Trust
+- VanEck Bitcoin Trust
+- Fidelity Wise Origin Bitcoin Fund
+- BlackRock/iShares Bitcoin Trust
+
+**Thematic**:
+- Themes ETF Trust
+- Global X ETFs (additional trusts beyond what's tracked)
+- WisdomTree (any additional trusts)
+
+## Discovery Report Format
+
+Write detailed results to `.agents/progress/Trust-Expansion.md`:
+```markdown
+# Trust Expansion Discovery Report
+Generated: [DATE]
+
+## Summary
+- Issuers checked: X
+- Trusts added: Y
+- Skipped (ETN): Z
+- Skipped (already tracked): W
+- Manual review needed: V
+
+## Added Trusts
+| Trust Name | CIK | Issuer | Category |
+|-----------|-----|--------|----------|
+| ProShares Trust III | 0001234567 | ProShares | L&I |
+
+## Skipped - Already Tracked
+- ProShares → ProShares Trust (CIK: XXXXXXXXXX) already in trusts.py
+
+## Skipped - No 485 Filings
+- DB (Deutsche Bank ETNs) — files ETN prospectuses, not 485 forms
+
+## Manual Review Needed
+- [Issuer] — multiple possible EDGAR matches, need human verification
 ```
-
-## Add CSS for New Pages (market.css or inline)
-
-Add to market.css (or use the worktree's market.css if Agent B hasn't merged yet — add inline styles if needed):
-```css
-.timeline { position: relative; padding-left: 20px; }
-.timeline::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: #E2E8F0; }
-.timeline-entry { position: relative; padding: 12px 0 12px 20px; border-bottom: 1px solid #F1F5F9; }
-.timeline-entry::before { content: ''; position: absolute; left: -5px; top: 20px; width: 10px; height: 10px; border-radius: 50%; background: var(--blue); }
-.timeline-date { font-size: 0.75rem; color: #94A3B8; font-weight: 600; }
-.timeline-content { margin-top: 4px; }
-.timeline-effective { font-size: 0.8rem; color: #374151; margin-left: 8px; }
-.timeline-funds { font-size: 0.77rem; color: #6B7280; margin-top: 2px; }
-.timeline-accession { font-size: 0.7rem; margin-top: 2px; }
-.timeline-controls { margin-bottom: 20px; }
-.trust-timeline-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
-.urgency-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
-.urgency-green { background: #D1FAE5; color: #065F46; }
-.urgency-amber { background: #FEF3C7; color: #92400E; }
-.urgency-red { background: #FEE2E2; color: #991B1B; }
-.calendar-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.calendar-section h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 12px; }
-@media (max-width: 768px) { .calendar-grid { grid-template-columns: 1fr; } }
-```
-
-## Important Notes
-
-1. **Check model fields carefully** — read `webapp/models.py` first. The `Filing` model may have different field names than assumed (e.g., `effective_date` may be stored differently, `accession_number` may be formatted differently).
-
-2. **Import the right get_master_data function** — in compare_view, check what functions `market_data.py` actually exposes. May be `get_rex_summary()` or something else. Read the file.
-
-3. **market_advanced.py MUST NOT conflict with Agent B's market.py** — Agent B owns `webapp/routers/market.py`. You create a SEPARATE file `webapp/routers/market_advanced.py`.
-
-4. **market/base.html conflict** — Both you and Agent B modify market/base.html. YOU add nav pills (timeline, calendar, compare). Agent B adds data_as_of. These will conflict at merge time. That's OK — the merge step resolves it. Just do your change cleanly.
 
 ## Commit Convention
 ```
-git add webapp/routers/market_advanced.py webapp/templates/market/timeline.html webapp/templates/market/calendar.html webapp/templates/market/compare.html webapp/main.py webapp/templates/market/base.html
-git commit -m "feat: Advanced market pages - Fund Lifecycle Timeline, Compliance Calendar, Fund Comparison"
+git add etp_tracker/trusts.py .agents/progress/Trust-Expansion.md
+git commit -m "feat: Trust expansion - add N new verified SEC trusts from Bloomberg issuer data"
 ```
 
 ## Done Criteria
-- [ ] `/market/timeline` loads, shows trust selector
-- [ ] `/market/calendar` loads, shows upcoming extensions + recent effectivities
-- [ ] `/market/compare?tickers=X,Y` loads (may show no data without master file)
-- [ ] Routes registered in main.py
-- [ ] Nav pills added to market/base.html
-- [ ] No import errors
+- [ ] All Bloomberg issuers checked against existing trusts
+- [ ] At least 10 new verified trusts added to trusts.py
+- [ ] Every added trust has CIK verified via submissions JSON
+- [ ] Discovery report written to .agents/progress/Trust-Expansion.md
+- [ ] No unverified CIKs added
