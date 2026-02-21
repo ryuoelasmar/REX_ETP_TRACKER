@@ -1,213 +1,91 @@
-# AGENT: Market-Complete
-**Task**: TASK-B — Market Intelligence Complete Fix + Enhancement
-**Branch**: feature/market-complete
+# AGENT: Screener-Admin
+**Task**: TASK-C — Screener Data Path Fix + Admin Score Data Removal
+**Branch**: feature/screener-admin
 **Status**: DONE
 
 ## Progress Reporting
-Write timestamped progress to: `.agents/progress/Market-Complete.md`
+Write timestamped progress to: `.agents/progress/Screener-Admin.md`
 Format: `## [HH:MM] Task description` then bullet details.
-Update at every major step.
 
-## Your Files (own completely)
-- `webapp/services/market_data.py`
-- `webapp/routers/market.py`
-- `webapp/templates/market/*.html` (all market templates)
-- `webapp/static/css/market.css`
-- `webapp/static/js/market.js`
+## Your Files
+- `screener/config.py`
+- `webapp/routers/admin.py`
+- `webapp/templates/admin.html`
 
 ## CRITICAL: Read These First
 Read ALL of these before touching anything:
-- `webapp/services/market_data.py`
-- `webapp/routers/market.py`
-- `webapp/templates/market/rex.html`
-- `webapp/templates/market/base.html`
-- `webapp/templates/market/category.html`
-- `webapp/templates/market/treemap.html`
-- `webapp/templates/market/issuer.html`
-- `webapp/templates/market/share_timeline.html`
-- `webapp/templates/market/underlier.html`
-- `webapp/static/css/market.css`
-- `webapp/static/js/market.js`
+- `screener/config.py`
+- `screener/data_loader.py`
+- `webapp/routers/admin.py`
+- `webapp/templates/admin.html`
+- `webapp/services/screener_3x_cache.py`
 
-## Fix 1: Market 500 Error (HIGHEST PRIORITY)
+## Fix 1: screener/config.py — Auto-detect Data Path
 
-In `webapp/templates/market/rex.html`, the `{% block market_scripts %}` section has an UNGUARDED sparklines loop that causes Jinja2 UndefinedError when `summary` is not in context (data unavailable, or exception in get_rex_summary).
+The current DATA_FILE points to `data/SCREENER/data.xlsx` which is gitignored and not present on Render. Change it to auto-detect the new OneDrive master file.
 
-Find this pattern in rex.html:
-```jinja2
-  // Sparklines
-  {% for suite in summary.suites %}
-  {% if suite.sparkline_data %}
-  MarketCharts.renderSparkline(...)
-  {% endif %}
-  {% endfor %}
-```
-
-Wrap it:
-```jinja2
-  {% if summary %}
-  {% for suite in summary.suites %}
-  {% if suite.sparkline_data %}
-  MarketCharts.renderSparkline(...)
-  {% endif %}
-  {% endfor %}
-  {% endif %}
-```
-
-## Fix 2: market_data.py — Data Path Auto-detect
-
-In `webapp/services/market_data.py`, replace the hardcoded DATA_FILE line with auto-detect:
-
+Replace the DATA_FILE line with:
 ```python
-from datetime import datetime as _dt
-
 _LOCAL_DATA = Path(r"C:\Users\RyuEl-Asmar\REX Financial LLC\REX Financial LLC - Rex Financial LLC\Product Development\MasterFiles\MASTER Data\The Dashboard.xlsx")
-_FALLBACK_DATA = Path("data/DASHBOARD/The Dashboard.xlsx")
-DATA_FILE = _LOCAL_DATA if _LOCAL_DATA.exists() else _FALLBACK_DATA
+_LEGACY_DATA = PROJECT_ROOT / "data" / "SCREENER" / "data.xlsx"
+DATA_FILE = _LOCAL_DATA if _LOCAL_DATA.exists() else _LEGACY_DATA
 ```
 
-Add `get_data_as_of()` function after `invalidate_cache()`:
-```python
-def get_data_as_of() -> str:
-    """Return file modification date as 'Feb 20, 2026' or empty string."""
-    try:
-        return _dt.fromtimestamp(DATA_FILE.stat().st_mtime).strftime("%b %d, %Y")
-    except Exception:
-        return ""
-```
+IMPORTANT: The new master file has sheets named `stock_data` and `etp_data` — check `screener/data_loader.py` to confirm what sheet names it reads. If data_loader.py reads `etp_data` and the new file has `etp_data`, no change needed to data_loader.py. If data_loader reads a different name, update data_loader.py to match.
 
-## Fix 3: market.py — Pass data_as_of to all routes
+After this fix, `screener_3x_cache.py`'s `warm_cache()` at startup will auto-load data from the OneDrive file and compute the cache automatically. The screener will never show "no data" when running locally.
 
-In `webapp/routers/market.py`, every route that calls `templates.TemplateResponse()` must pass `"data_as_of": svc.get_data_as_of()` in the context dict. This applies to ALL routes: rex_view, category_view, treemap_view, issuer_view, share_timeline_view, underlier_view. For routes with `available=False` fallback, also pass data_as_of there.
+## Fix 2: admin.py — Remove Screener Score Data Route
 
-## Fix 4: market/base.html — Show as-of date
+In `webapp/routers/admin.py`:
 
-After the nav pills `<div class="market-nav-pills">...</div>`, add:
-```html
-{% if data_as_of %}<div class="market-data-date">Data as of {{ data_as_of }}</div>{% endif %}
-```
+1. Find and REMOVE the `POST /admin/screener/rescore` route entirely (search for `@router.post` with "rescore" or "score" in the path)
+2. Remove `screener_data_available` from the GET `/admin/` template context dict
+3. Remove any imports that are ONLY used by the removed rescore route (check if `from screener.config import DATA_FILE as SCREENER_DATA_FILE` is used elsewhere — if only for rescore, remove it)
 
-## Fix 5: market.css — Undefined CSS variables
+Be careful: keep ALL other admin routes intact:
+- GET `/admin/` (dashboard)
+- POST `/admin/trusts/approve`
+- POST `/admin/trusts/reject`
+- POST `/admin/subscribers/approve`
+- POST `/admin/subscribers/reject`
+- POST `/admin/digest/send`
+- GET `/admin/ticker-qc` (if exists)
 
-Replace ALL occurrences of undefined CSS variables in market.css:
-- `var(--text-primary)` → `var(--navy)` (or `#0F172A` if not resolving)
-- `var(--text-secondary)` → `#374151`
-- `var(--text-muted)` → `#94A3B8`
-- `var(--accent)` → `var(--blue)`
-- `var(--bg-card)` → `#FFFFFF`
+## Fix 3: admin.html — Remove Score Data UI Section
 
-Use replace_all=true on each substitution.
+In `webapp/templates/admin.html`, find and remove the "Launch Screener" / "Score Data" section. This is approximately a block that contains:
+- A heading like "Score Data" or "Launch Screener"
+- A form with a submit button that posts to `/admin/screener/rescore`
+- Any associated flash message blocks for `?screener=` parameter
 
-## Enhancement 1: Rex View — Executive Suite Table
+Remove the entire section but keep all other admin sections:
+- Trust Request Approvals
+- Digest Subscriber Approvals
+- Email Digest
+- Ticker QC / AI Analysis Status
 
-Replace the `<div class="suite-cards">` loop in rex.html with a Bloomberg-style sortable table:
+Also remove any `{% if screener_data_available %}` conditionals related to the removed section.
 
-```html
-<table class="data-table suite-table" id="suiteTable">
-  <thead>
-    <tr>
-      <th>Suite</th>
-      <th class="sortable" data-col="1">AUM</th>
-      <th class="sortable" data-col="2">1W Flow</th>
-      <th class="sortable" data-col="3">1M Flow</th>
-      <th class="sortable" data-col="4">Mkt Share</th>
-      <th class="sortable" data-col="5"># Funds</th>
-      <th>4-mo Trend</th>
-      <th>Top Movers</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for suite in summary.suites %}
-    <tr data-suite="{{ suite.name }}">
-      <td><a href="/market/category?cat={{ suite.name|urlencode }}" class="text-link">{{ suite.short_name }}</a></td>
-      <td class="text-mono" data-sort="{{ suite.kpis.aum_raw|default(0) }}">{{ suite.kpis.aum_fmt }}</td>
-      <td class="text-mono {{ 'flow-positive' if suite.kpis.flow_1w > 0 else 'flow-negative' if suite.kpis.flow_1w < 0 else '' }}" data-sort="{{ suite.kpis.flow_1w|default(0) }}">{{ suite.kpis.flow_1w_fmt }}</td>
-      <td class="text-mono {{ 'flow-positive' if suite.kpis.flow_1m > 0 else 'flow-negative' if suite.kpis.flow_1m < 0 else '' }}" data-sort="{{ suite.kpis.flow_1m|default(0) }}">{{ suite.kpis.flow_1m_fmt }}</td>
-      <td data-sort="{{ suite.market_share|default(0) }}">{{ suite.market_share }}%</td>
-      <td data-sort="{{ suite.kpis.num_products|default(0) }}">{{ suite.kpis.num_products }}</td>
-      <td style="min-width:90px;"><canvas id="sparkline-{{ suite.short_name|replace(' ', '-') }}" width="88" height="30" class="sparkline-canvas"></canvas></td>
-      <td class="movers-cell">{% for m in suite.top_movers[:3] %}<span class="{{ 'flow-positive' if m.flow_raw > 0 else 'flow-negative' if m.flow_raw < 0 else '' }}">{{ m.ticker }} {{ m.flow }}</span>{% if not loop.last %} &middot; {% endif %}{% endfor %}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-```
-
-Also: update `toggleSuite()` JS to toggle `<tr data-suite="...">` rows instead of `.suite-card`.
-
-Check what fields exist on suite.kpis by reading market_data.py's `get_rex_summary()` function. If `flow_1m`, `aum_raw`, etc. don't exist, use what does exist. Adapt the template to match actual data fields.
-
-## Enhancement 2: Category View — Pill Selector
-
-In `webapp/templates/market/category.html`, replace any `<select>` dropdown with pill buttons:
-```html
-<div class="category-pills">
-  <a href="/market/category?cat=All" class="pill {{ 'active' if cat == 'All' else '' }}">All</a>
-  {% for c in all_categories %}
-  <a href="/market/category?cat={{ c|urlencode }}" class="pill {{ 'active' if cat == c else '' }}">{{ c }}</a>
-  {% endfor %}
-</div>
-```
-
-In market.py's category_view route, pass `all_categories` (list of unique category names from get_category_summary() or get_all_categories()).
-
-## Enhancement 3: All 4 Tabs — Verify and Fix
-
-For treemap.html, issuer.html, share_timeline.html, underlier.html:
-1. Read each template carefully
-2. Check the `{% block market_scripts %}` section for unguarded variable access
-3. Wrap ALL data access in `{% if varname %}` guards
-4. Check market.py routes — ensure ALL template context vars needed by the template are passed
-5. Fix any CSS issues (undefined variables, broken layout)
-
-## Enhancement 4: market.css New Styles
-
-Add:
-```css
-.market-data-date { font-size: 0.72rem; color: #94A3B8; text-align: right; margin-top: 4px; }
-.suite-table td { vertical-align: middle; padding: 10px 12px; }
-.suite-table .movers-cell { font-size: 0.77rem; }
-.suite-table .mover { white-space: nowrap; }
-.category-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
-.text-link { color: var(--blue); text-decoration: none; font-weight: 600; }
-.text-link:hover { text-decoration: underline; }
-```
-
-## Enhancement 5: market.js — Table Sorting
-
-Add `sortTable(tableId, colIndex)` if not already present. Check `webapp/static/js/app.js` first — if sortTable exists there (lines 81-110), don't duplicate it. If not in market.js, add:
-```js
-function sortTable(tableId, colIndex) {
-  var table = document.getElementById(tableId);
-  var tbody = table.tBodies[0];
-  var rows = Array.from(tbody.rows);
-  var asc = table.dataset.sortCol == colIndex && table.dataset.sortDir == 'asc' ? false : true;
-  table.dataset.sortCol = colIndex;
-  table.dataset.sortDir = asc ? 'asc' : 'desc';
-  rows.sort(function(a, b) {
-    var av = parseFloat(a.cells[colIndex].dataset.sort || a.cells[colIndex].textContent) || 0;
-    var bv = parseFloat(b.cells[colIndex].dataset.sort || b.cells[colIndex].textContent) || 0;
-    return asc ? av - bv : bv - av;
-  });
-  rows.forEach(function(r) { tbody.appendChild(r); });
-}
-```
+## Verification
+After making changes, verify:
+1. `python -c "from screener.config import DATA_FILE; print(DATA_FILE, DATA_FILE.exists())"` — should show the OneDrive path and True (if on the local machine)
+2. `python -c "from webapp.routers.admin import router; print('admin ok')"` — should import without errors
+3. No references to `screener/rescore` remain in admin.py or admin.html
 
 ## Commit Convention
 ```
-git add webapp/services/market_data.py webapp/routers/market.py webapp/templates/market/ webapp/static/css/market.css webapp/static/js/market.js
-git commit -m "feat: Market intelligence complete overhaul - fix 500 error, executive suite table, category pills, data-as-of"
+git add screener/config.py webapp/routers/admin.py webapp/templates/admin.html
+git commit -m "fix: Screener auto-loads from OneDrive master file; remove admin Score Data section"
 ```
 
 ## Done Criteria
-- [x] `/market/rex` loads without 500 (even with no data file)
-- [x] Data path auto-detects OneDrive file
-- [x] "Data as of DATE" shown in market/base.html
-- [x] Suite table replaces cramped cards
-- [x] Category pills replace dropdown
-- [x] All 4 other tabs load without errors
-- [x] market.css has no undefined CSS variable references
+- [x] screener/config.py auto-detects OneDrive path, falls back to legacy
+- [x] `/admin/` loads without errors (no screener_data_available reference)
+- [x] Score Data section completely gone from admin.html
+- [x] No POST /admin/screener/rescore route in admin.py
+- [x] Screener will auto-load on server startup (warm_cache in screener_3x_cache.py)
 
 ## Log
-- f3a2bff: fix: market data path auto-detect, data-as-of date, CSS variable fixes
-- 3065f8a: feat: replace category dropdown with pill selector
+- All three fixes implemented in prior commits (5f93895, 1f10ae3, 7e71aed, 24afa32)
+- Verification passed: DATA_FILE resolves to OneDrive path (exists=True), admin router imports clean, no rescore references remain

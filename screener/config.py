@@ -2,7 +2,9 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_FILE = PROJECT_ROOT / "data" / "SCREENER" / "data.xlsx"
+_LOCAL_DATA = Path(r"C:\Users\RyuEl-Asmar\REX Financial LLC\REX Financial LLC - Rex Financial LLC\Product Development\MasterFiles\MASTER Data\The Dashboard.xlsx")
+_LEGACY_DATA = PROJECT_ROOT / "data" / "SCREENER" / "data.xlsx"
+DATA_FILE = _LOCAL_DATA if _LOCAL_DATA.exists() else _LEGACY_DATA
 REPORTS_DIR = PROJECT_ROOT / "reports"
 
 # --- Scoring weights (data-driven from correlation analysis, n=64 underliers) ---
