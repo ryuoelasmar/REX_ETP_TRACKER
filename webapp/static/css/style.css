@@ -312,7 +312,7 @@ th {
   font-size: var(--text-xs); text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap; user-select: none;
-  position: sticky; top: var(--nav-height); z-index: 10;
+  position: sticky; top: var(--nav-height); z-index: 101;
 }
 th.sortable { cursor: pointer; }
 th.sortable:hover { background: var(--navy-light); }
@@ -328,7 +328,7 @@ tbody tr:hover { background: var(--surface-2); }
 tr.today-highlight { background: var(--green-bg); }
 
 /* Data table sticky headers */
-.data-table th { position: sticky; top: 0; z-index: 2; background: var(--surface-1); }
+.data-table th { position: sticky; top: var(--nav-height); z-index: 101; background: var(--surface-1); }
 .data-table tr:hover { background: var(--surface-2); }
 
 td.num-col, th.num-col { text-align: right; font-family: var(--font-mono); font-size: var(--text-sm); }
@@ -337,6 +337,10 @@ td.num-col, th.num-col { text-align: right; font-family: var(--font-mono); font-
 .days-col { text-align: center; font-size: var(--text-sm); color: var(--gray-500); font-family: var(--font-mono); }
 .table-wrap { overflow-x: auto; border-radius: var(--radius-lg); border: 1px solid var(--border); }
 .table-wrap table { border: none; border-radius: 0; }
+.table-scroll-wrap {
+  overflow-x: auto;
+  /* NOTE: Do NOT add overflow-y here - it would break sticky headers */
+}
 
 /* ===== STATUS BADGES ===== */
 .status-effective { color: var(--green); font-weight: 600; }
