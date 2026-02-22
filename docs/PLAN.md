@@ -14,7 +14,7 @@ The REX Intelligence Hub consolidates competitive intelligence, regulatory filin
 - "Where do we rank against competitors in each category?"
 - "What's happening in the market?"
 
-This plan covers **Phase 1: Market Intelligence Module** - two views built from The_Dashboard.xlsx data.
+This plan covers **Phase 1: Market Intelligence Module** - two views built from The Dashboard.xlsx data.
 
 ---
 
@@ -53,11 +53,16 @@ Build `/market/` routes with two primary views:
 
 Both views share common KPIs and chart patterns but serve different questions.
 
+> **Note**: `/screener/market` already exists with a basic market landscape (top 2x ETFs by AUM,
+> most popular underliers, market snapshot KPIs). The new `/market/` module is a separate,
+> more comprehensive competitive intelligence tool using `The Dashboard.xlsx` data - not a
+> replacement for the screener market tab. Do not duplicate or modify the existing screener.
+
 ---
 
 ## Data Source
 
-**File**: `data/DASHBOARD/The_Dashboard.xlsx` (create folder, place file)
+**File**: `data/DASHBOARD/The Dashboard.xlsx` (already exists, 15.8 MB)
 
 ### Sheet Reference
 
@@ -322,7 +327,7 @@ CATEGORY_SLICERS = {
 """
 Market Intelligence data loader and cache.
 
-Loads The_Dashboard.xlsx and provides:
+Loads The Dashboard.xlsx and provides:
 - get_master_data() -> Full fund universe
 - get_rex_data() -> REX products only
 - get_category_data(category, filters) -> Filtered category data
@@ -336,7 +341,7 @@ import threading
 import time
 from functools import lru_cache
 
-DATA_FILE = Path("data/DASHBOARD/The_Dashboard.xlsx")
+DATA_FILE = Path("data/DASHBOARD/The Dashboard.xlsx")
 
 # Cache with 1-hour TTL (data updates daily)
 _cache = {}
@@ -589,33 +594,31 @@ Fix existing issues and improve UX while Agent 1 builds Market Intelligence.
 
 ---
 
-## Task 1: Fix Screener "No Bloomberg Data" Issue (HIGHEST PRIORITY)
+## Task 1: Fix Screener Cache Persistence (HIGHEST PRIORITY)
 
 ### Problem
-Screener pages show "No Bloomberg Data available" even though file exists.
+Screener shows "No Bloomberg Data" on Render after deploys/restarts, even though the data file exists.
 
-### Verified Facts
-- File exists: `D:\REX_ETP_TRACKER\data\SCREENER\data.xlsx` (5MB)
-- Path resolves correctly: `screener.config.DATA_FILE` returns correct path
-- Sheets are correct: `stock_data` (6,479 rows), `etp_data` (5,074 rows)
+### Root Cause (Investigated 2026-02-19)
+The code works correctly on local. The issue is **Render-specific**:
+1. `_data_available()` returns True (file exists on disk) - this is correct
+2. `_get_3x_data()` calls `get_3x_analysis()` which returns **None** (empty in-memory cache)
+3. `compute_and_cache()` is triggered but takes **6-9 seconds** to load data + run analysis
+4. Render's HTTP timeout kills the request before computation finishes
+5. Exception is silently caught, template receives `analysis=None`, shows "No Bloomberg Data"
 
-### Investigation Path
-1. Add logging to `webapp/routers/screener.py` in `_data_available()`
-2. Check `webapp/services/screener_3x_cache.py` - is `compute_and_cache()` being called?
-3. Look for silent exception handling that might swallow errors
-4. Check if cache directory exists and is writable
-
-### Files to Check/Edit
-- `webapp/routers/screener.py` - `_data_available()` function
-- `webapp/services/screener_3x_cache.py` - `compute_and_cache()` function
-- `screener/data_loader.py` - `load_all()` function
-- `screener/config.py` - Path configuration
+The in-memory cache (`screener_3x_cache.py`) is lost on every Render restart/deploy.
 
 ### Fix Approach
-1. Add detailed logging to trace the data loading path
-2. Ensure exceptions are logged, not swallowed
-3. Test `/screener/` route after server restart
-4. Verify "Score Data" admin button works if needed
+1. **Add disk-based cache**: Save analysis results to `data/SCREENER/cache.pkl` after computation
+2. **Load from disk on startup**: Check for disk cache before recomputing from scratch
+3. **Add startup pre-computation**: FastAPI `@app.on_event("startup")` hook to warm the cache
+4. **Fix error message**: When `data_available=True` but `analysis=None`, show "Data is loading..." not "No Bloomberg Data"
+
+### Files to Edit
+- `webapp/services/screener_3x_cache.py` - Add disk persistence (pickle/JSON) and disk cache loading
+- `webapp/main.py` - Add startup event to pre-warm screener cache
+- `webapp/routers/screener.py` - Fix template context when cache is warming up
 
 ---
 
@@ -701,76 +704,61 @@ Add loading skeleton or spinner while trust data loads.
 
 ---
 
-# Setup Instructions
+# Execution via Dev Orchestrator
 
-## Create Git Worktrees
+## Option A: VS Code Chat Panel (Recommended)
 
-```powershell
+1. Open VS Code Chat panel (`Ctrl+Alt+I`)
+2. Select **Claude Opus 4.6** from model picker
+3. Select **Orchestrator** from agent dropdown
+4. Type:
+   > Build Market Intelligence module (Agent 1 scope) and fix webapp issues (Agent 2 scope) per docs/PLAN.md
+5. Orchestrator plans tasks, creates worktrees in `.worktrees/`, spawns parallel workers
+6. Check progress: ask "What's the status?"
+7. When done: ask "Merge the completed work"
+
+## Option B: CLI (Terminal)
+
+```bash
 cd D:\REX_ETP_TRACKER
 
-# Ensure you're on main and it's clean
-git status
-git stash  # if needed
+# Plan both agents' work
+orchestrate plan "Build Market Intelligence module and fix webapp issues per docs/PLAN.md"
 
-# Create branches
-git branch feature/market-intelligence
-git branch feature/webapp-fixes
+# Spawn parallel workers (worktrees created automatically in .worktrees/)
+orchestrate run
 
-# Create worktrees
-git worktree add ..\REX_MARKET feature/market-intelligence
-git worktree add ..\REX_FIXES feature/webapp-fixes
-```
+# Check progress
+orchestrate status
 
-## Open in VS Code
-
-```powershell
-# Terminal 1 - Agent 1
-code D:\REX_MARKET
-
-# Terminal 2 - Agent 2
-code D:\REX_FIXES
-```
-
-## Place Data File
-
-Copy `The_Dashboard.xlsx` to `D:\REX_MARKET\data\DASHBOARD\`
-
-(Agent 1's worktree needs the data file)
-
-## Start Agents
-
-**Agent 1 prompt:**
-> Read PLAN.md and implement Agent 1 scope: Market Intelligence module with REX View and Category View.
-
-**Agent 2 prompt:**
-> Read PLAN.md and implement Agent 2 scope: Fix screener data loading, improve downloads page, identify 33 Act trusts.
-
----
-
-# Merge Strategy
-
-After both agents complete:
-
-```powershell
-cd D:\REX_ETP_TRACKER
-
-# Merge Agent 1
-git merge feature/market-intelligence --no-ff -m "Add Market Intelligence module"
-
-# Merge Agent 2
-git merge feature/webapp-fixes --no-ff -m "Fix screener, improve downloads, identify 33 Act"
-
-# Clean up worktrees
-git worktree remove ..\REX_MARKET
-git worktree remove ..\REX_FIXES
-
-# Clean up branches
-git branch -d feature/market-intelligence
-git branch -d feature/webapp-fixes
+# Merge when all agents are DONE
+orchestrate merge
 
 # Push
 git push origin main
 ```
+
+## Option C: Run Agents Separately
+
+For more control, run one agent at a time:
+
+```bash
+# Agent 1 only
+orchestrate plan "Build Market Intelligence module per docs/PLAN.md Agent 1 scope"
+orchestrate run
+
+# Wait for completion, then Agent 2
+orchestrate plan "Fix webapp issues per docs/PLAN.md Agent 2 scope"
+orchestrate run
+
+# Merge all
+orchestrate merge
+```
+
+## Data File
+
+`data/DASHBOARD/The Dashboard.xlsx` already exists in the project root (15.8 MB).
+Worktrees in `.worktrees/` share the same git history - no need to copy data files.
 
 ---
 

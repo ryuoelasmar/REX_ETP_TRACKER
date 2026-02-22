@@ -86,7 +86,7 @@ CIKs MUST be verified before adding. Never guess.
 Historical note: 8 of 14 original CIKs were wrong. All now verified.
 
 ## Admin Panel
-Admin panel (`/admin/`, password `123`) has these sections only:
+Admin panel (`/admin/`, password `ryu123`) has these sections only:
 - **Trust Request Approvals**: Approve/reject trust monitoring requests. Approve writes to DB + `trusts.py`.
 - **Digest Subscriber Approvals**: Approve/reject digest subscriber requests. Approve writes email to `email_recipients.txt`.
 - **Email Digest**: Send digest email (reads from DB, not CSVs). Recipients from `email_recipients.txt`.
