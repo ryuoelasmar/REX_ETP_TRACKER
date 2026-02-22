@@ -9,24 +9,52 @@
 {% endblock %}
 
 {% block market_content %}
-{# Category Filter #}
+{# Category Filter — no "All" option #}
 <div class="category-selector">
   <label for="catFilter">Category:</label>
   <select id="catFilter" onchange="window.location='/market/treemap?cat='+this.value">
-    <option value="All" {{ 'selected' if category == 'All' else '' }}>All Categories</option>
-    {% for cat in categories %}
-    <option value="{{ cat }}" {{ 'selected' if category == cat else '' }}>{{ cat }}</option>
+    {% for c in categories %}
+    <option value="{{ c }}" {% if c == category %}selected{% endif %}>
+      {{ c | replace('Leverage & Inverse - ', 'L&I ') | replace('Income - ', 'Inc ') }}
+    </option>
     {% endfor %}
   </select>
   {% if summary %}<span class="kpi-value">{{ summary.total_aum_fmt }} total AUM</span>{% endif %}
 </div>
 
-{% if summary and summary.products %}
+{% if not summary or not summary.products %}
+<div style="text-align:center; padding:60px; color:#94A3B8;">
+  <p style="font-size:1.1rem;">No products found for this category.</p>
+  <p style="font-size:0.85rem;">Try selecting a different category.</p>
+</div>
+{% else %}
 <div class="treemap-container">
   <canvas id="treemapChart"></canvas>
 </div>
-{% else %}
-<div class="alert alert-warning">No product data available for this category.</div>
+
+{# Issuer color legend #}
+<div class="treemap-legend" style="margin-top:16px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+  {% set seen_issuers = [] %}
+  {% for p in summary.products %}
+    {% if p.issuer not in seen_issuers and seen_issuers|length < 8 %}
+      {% set _ = seen_issuers.append(p.issuer) %}
+    {% endif %}
+  {% endfor %}
+  <span style="font-size:0.72rem; color:#94A3B8; font-weight:600; text-transform:uppercase; margin-right:4px;">Issuers:</span>
+  {% for issuer in seen_issuers %}
+  <span class="treemap-legend-item" data-index="{{ loop.index0 }}" style="display:inline-flex; align-items:center; gap:4px; font-size:0.78rem; color:#475569;">
+    <span class="treemap-legend-dot"></span>{{ issuer }}
+  </span>
+  {% endfor %}
+</div>
+<script>
+var LEGEND_COLORS = ['#1E40AF','#059669','#7C3AED','#D97706','#0891B2','#E11D48','#65A30D','#9333EA'];
+document.querySelectorAll('.treemap-legend-item').forEach(function(el) {
+  var idx = parseInt(el.getAttribute('data-index'));
+  var dot = el.querySelector('.treemap-legend-dot');
+  if (dot) { dot.style.background = LEGEND_COLORS[idx % LEGEND_COLORS.length]; dot.style.display='inline-block'; dot.style.width='10px'; dot.style.height='10px'; dot.style.borderRadius='50%'; dot.style.marginRight='4px'; }
+});
+</script>
 {% endif %}
 {% endblock %}
 
