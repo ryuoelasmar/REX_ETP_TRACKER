@@ -16,13 +16,9 @@
 <nav class="sticky-nav">
   <a href="/" class="brand" style="text-decoration:none">REX Financial</a>
   <a href="/" {% if request.url.path == '/' %}class="active"{% endif %}>Home</a>
-  <a href="/dashboard" {% if '/dashboard' in request.url.path %}class="active"{% endif %}>Dashboard</a>
-  <a href="/funds/" {% if '/funds' in request.url.path %}class="active"{% endif %}>Funds</a>
-  <a href="/search/" {% if '/search' in request.url.path %}class="active"{% endif %}>Search</a>
-  <a href="/downloads/" {% if '/downloads' in request.url.path %}class="active"{% endif %}>Downloads</a>
+  <a href="/dashboard" {% if '/dashboard' in request.url.path %}class="active"{% endif %}>Filings</a>
   <a href="/market/rex" {% if '/market' in request.url.path %}class="active"{% endif %}>Market</a>
   <a href="/screener/" {% if '/screener' in request.url.path %}class="active"{% endif %}>Screener</a>
-  <a href="/digest/subscribe" {% if '/digest' in request.url.path %}class="active"{% endif %}>Subscribe</a>
   <a href="/admin/" {% if '/admin' in request.url.path %}class="active"{% endif %}>Admin</a>
   {% block nav_extra %}{% endblock %}
   <span style="margin-left:auto; font-size:var(--text-sm); color:rgba(255,255,255,0.5);">
