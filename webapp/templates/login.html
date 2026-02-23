@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f1923">
+  <script>(function(){var t=localStorage.getItem('rex-theme');if(!t){t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)})()</script>
   <title>Login - REX FinHub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,7 +32,7 @@
         <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:var(--gray-700);">Password</label>
         <input type="password" name="password" required autofocus
                placeholder="Enter password"
-               style="width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:6px; font-size:14px; box-sizing:border-box;">
+               style="width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:6px; font-size:14px; box-sizing:border-box; background:var(--card-bg); color:var(--text-primary);">
       </div>
       <button type="submit" class="btn btn-primary" style="width:100%; padding:12px; font-size:15px;">
         Log In

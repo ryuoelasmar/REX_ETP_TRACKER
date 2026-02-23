@@ -8,13 +8,13 @@
 </div>
 
 {% if error %}
-<div style="padding:20px; background:#f8d7da; border:1px solid #f5c6cb; border-radius:8px; color:#721c24; margin-bottom:20px;">
+<div style="padding:20px; background:var(--red-bg); border:1px solid var(--red); border-radius:8px; color:var(--red); margin-bottom:20px;">
   {{ error }}
 </div>
 {% endif %}
 
 {% if submitted %}
-<div style="padding:20px; background:#d4edda; border:1px solid #c3e6cb; border-radius:8px; color:#155724; margin-bottom:20px;">
+<div style="padding:20px; background:var(--green-bg); border:1px solid var(--green); border-radius:8px; color:var(--green); margin-bottom:20px;">
   <strong>Request submitted.</strong> Our team will review your request and add this trust to monitoring.
   You will see it on the dashboard once it has been approved and the pipeline has run.
 </div>

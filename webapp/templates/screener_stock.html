@@ -81,7 +81,7 @@
   </thead>
   <tbody>
     {% for p in products|sort(attribute='aum', reverse=True) %}
-    <tr{% if p.is_rex %} style="background:#f0f7ff;"{% endif %}>
+    <tr{% if p.is_rex %} style="background:var(--blue-subtle);"{% endif %}>
       <td class="ticker-col">{{ p.ticker }}{% if p.is_rex %} <span style="background:var(--navy);color:white;padding:1px 6px;border-radius:8px;font-size:10px;">[REX]</span>{% endif %}</td>
       <td style="font-size:12px;">{{ p.issuer or '-' }}</td>
       <td>{{ p.direction or '-' }}</td>

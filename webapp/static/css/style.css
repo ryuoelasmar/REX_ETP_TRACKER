@@ -812,6 +812,33 @@ tr.risk-high-row:hover { background: #ffe0b2; }
 [data-theme="dark"] .form-badge { background: var(--surface-3); color: var(--text-primary); }
 [data-theme="dark"] .form-pill { background: var(--surface-2); color: var(--text-primary); border-color: var(--card-border); }
 
+/* Dark mode: alerts */
+[data-theme="dark"] .alert-success { color: #4ade80; }
+[data-theme="dark"] .alert-warning { color: #fb923c; }
+[data-theme="dark"] .alert-error { color: #f87171; }
+[data-theme="dark"] .alert-info { color: #60a5fa; }
+
+/* Dark mode: badges */
+[data-theme="dark"] .badge-positive { background: rgba(5,150,105,0.2); color: #4ade80; }
+[data-theme="dark"] .badge-negative { background: rgba(220,38,38,0.2); color: #f87171; }
+[data-theme="dark"] .badge-neutral  { background: var(--surface-2); color: var(--text-secondary); }
+
+/* Dark mode: risk rows */
+[data-theme="dark"] tr.risk-extreme-row { background: rgba(220,38,38,0.12); }
+[data-theme="dark"] tr.risk-extreme-row:hover { background: rgba(220,38,38,0.22); }
+[data-theme="dark"] tr.risk-high-row { background: rgba(245,158,11,0.12); }
+[data-theme="dark"] tr.risk-high-row:hover { background: rgba(245,158,11,0.22); }
+
+/* Dark mode: kpi-row-blue */
+[data-theme="dark"] .kpi-row-blue .kpi { border-color: rgba(96,165,250,0.3); }
+
+/* Dark mode: sub-nav */
+[data-theme="dark"] .sub-nav { border-bottom-color: var(--surface-3); }
+[data-theme="dark"] .sub-nav .pill.active { border-bottom-color: var(--blue); color: var(--text-primary); }
+
+/* Dark mode: footer */
+[data-theme="dark"] .footer { border-top-color: var(--surface-3); }
+
 /* Smooth theme transitions */
 body, .sticky-nav, table, th, td, .kpi, .trust-card, .trust-block,
 .trust-header, .admin-card, .meta-item, .filter-bar, .pill,

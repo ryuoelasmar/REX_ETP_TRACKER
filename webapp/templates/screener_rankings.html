@@ -70,7 +70,7 @@
   </thead>
   <tbody>
     {% for r in all_opportunities %}
-    <tr {% if r.filing_status and r.filing_status.startswith('REX Filed') %}style="background:#e8f5e9;"{% endif %}>
+    <tr {% if r.filing_status and r.filing_status.startswith('REX Filed') %}style="background:var(--green-bg);"{% endif %}>
       <td style="color:var(--gray); font-size:12px;">{{ loop.index }}</td>
       <td class="ticker-col">
         <a href="/screener/stock/{{ r.ticker }}">{{ r.ticker }}</a>
@@ -83,7 +83,7 @@
           {% else %}color:var(--gray);{% endif %}">
           {{ "%.1f"|format(r.composite_score) }}
         </span>
-        <div style="display:inline-block; width:60px; height:6px; background:#eee; border-radius:3px; vertical-align:middle; margin-left:4px;">
+        <div style="display:inline-block; width:60px; height:6px; background:var(--surface-3); border-radius:3px; vertical-align:middle; margin-left:4px;">
           <div style="width:{{ r.composite_score }}%; height:100%; border-radius:3px;
             {% if r.composite_score >= 70 %}background:var(--green);
             {% elif r.composite_score >= 40 %}background:var(--orange);
@@ -99,9 +99,9 @@
       <td>
         {% if r.filing_status and r.filing_status != 'Not Filed' %}
         <span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600;
-          {% if 'Effective' in r.filing_status %}background:#e8f5e9; color:var(--green);
-          {% elif 'Pending' in r.filing_status %}background:#e3f2fd; color:var(--blue);
-          {% elif 'Delayed' in r.filing_status %}background:#fff3e0; color:var(--orange);
+          {% if 'Effective' in r.filing_status %}background:var(--green-bg); color:var(--green);
+          {% elif 'Pending' in r.filing_status %}background:var(--blue-subtle); color:var(--blue);
+          {% elif 'Delayed' in r.filing_status %}background:var(--orange-bg); color:var(--orange);
           {% else %}background:var(--light); color:var(--gray);{% endif %}">
           {{ r.filing_status }}
         </span>
@@ -141,7 +141,7 @@
   </thead>
   <tbody>
     {% for r in filed_only %}
-    <tr style="background:#e8f5e9;">
+    <tr style="background:var(--green-bg);">
       <td style="color:var(--gray); font-size:12px;">{{ loop.index }}</td>
       <td class="ticker-col">
         <a href="/screener/stock/{{ r.ticker }}">{{ r.ticker }}</a>
@@ -154,7 +154,7 @@
           {% else %}color:var(--gray);{% endif %}">
           {{ "%.1f"|format(r.composite_score) }}
         </span>
-        <div style="display:inline-block; width:60px; height:6px; background:#eee; border-radius:3px; vertical-align:middle; margin-left:4px;">
+        <div style="display:inline-block; width:60px; height:6px; background:var(--surface-3); border-radius:3px; vertical-align:middle; margin-left:4px;">
           <div style="width:{{ r.composite_score }}%; height:100%; border-radius:3px;
             {% if r.composite_score >= 70 %}background:var(--green);
             {% elif r.composite_score >= 40 %}background:var(--orange);
@@ -169,9 +169,9 @@
       </td>
       <td>
         <span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600;
-          {% if 'Effective' in r.filing_status %}background:#e8f5e9; color:var(--green);
-          {% elif 'Pending' in r.filing_status %}background:#e3f2fd; color:var(--blue);
-          {% elif 'Delayed' in r.filing_status %}background:#fff3e0; color:var(--orange);
+          {% if 'Effective' in r.filing_status %}background:var(--green-bg); color:var(--green);
+          {% elif 'Pending' in r.filing_status %}background:var(--blue-subtle); color:var(--blue);
+          {% elif 'Delayed' in r.filing_status %}background:var(--orange-bg); color:var(--orange);
           {% else %}background:var(--light); color:var(--gray);{% endif %}">
           {{ r.filing_status }}
         </span>

@@ -8,7 +8,7 @@
 </div>
 
 {% if trusts_with_no_funds %}
-<div id="noFundsBanner" style="background:#e8f4fd; border:1px solid #b3d9f2; border-radius:8px; padding:12px 16px; margin-bottom:16px; font-size:13px; position:relative;">
+<div id="noFundsBanner" style="background:var(--blue-subtle); border:1px solid var(--blue); border-radius:8px; padding:12px 16px; margin-bottom:16px; font-size:13px; position:relative;">
   <button onclick="document.getElementById('noFundsBanner').style.display='none'" style="position:absolute; top:8px; right:12px; background:none; border:none; font-size:16px; cursor:pointer; color:var(--gray);">&times;</button>
   <strong>Note:</strong> {{ trusts_with_no_funds|length }} trusts have no fund records (likely S-1/N-2 filers that don't submit 485 forms): {{ trusts_with_no_funds|join(', ') }}
 </div>

@@ -10,7 +10,7 @@
 </div>
 
 {% if error %}
-<div style="padding:16px; background:#f8d7da; border:1px solid #f5c6cb; border-radius:8px; color:#721c24; margin-bottom:20px;">
+<div style="padding:16px; background:var(--red-bg); border:1px solid var(--red); border-radius:8px; color:var(--red); margin-bottom:20px;">
   {{ error }}
 </div>
 {% endif %}
@@ -57,7 +57,7 @@
 </div>
 
 {% if configured and has_text %}
-<div style="padding:20px; background:#f8f9fa; border:1px solid var(--border); border-radius:8px; margin-bottom:24px;">
+<div style="padding:20px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; margin-bottom:24px;">
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
     <h3 style="margin:0;">Run New Analysis</h3>
     <span style="font-size:12px; color:var(--muted);">
@@ -65,7 +65,7 @@
     </span>
   </div>
   {% if usage_today >= daily_limit %}
-  <div style="padding:12px; background:#fff3cd; border:1px solid #ffc107; border-radius:6px; color:#856404; font-size:13px;">
+  <div style="padding:12px; background:var(--orange-bg); border:1px solid var(--orange); border-radius:6px; color:var(--text-secondary); font-size:13px;">
     Daily analysis limit reached ({{ daily_limit }} per day). Try again tomorrow.
   </div>
   {% else %}
@@ -90,18 +90,18 @@
     {% endif %}
   </form>
   {% endif %}
-  <div style="margin-top:14px; padding:10px 14px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:12px; color:#795548;">
+  <div style="margin-top:14px; padding:10px 14px; background:var(--orange-bg); border:1px solid var(--orange); border-radius:6px; font-size:12px; color:var(--text-secondary);">
     <strong>NOTICE:</strong> Every AI analysis comes directly out of Ryu's pocket.
     He's been refreshing his Anthropic billing page more than the SEC refreshes its filings.
     Use wisely -- his coffee budget depends on it.
   </div>
 </div>
 {% elif not configured %}
-<div style="padding:16px; background:#fff3cd; border:1px solid #ffc107; border-radius:8px; color:#856404; margin-bottom:24px;">
+<div style="padding:16px; background:var(--orange-bg); border:1px solid var(--orange); border-radius:8px; color:var(--text-secondary); margin-bottom:24px;">
   Claude API key not configured. Add ANTHROPIC_API_KEY to your .env file.
 </div>
 {% elif not has_text %}
-<div style="padding:16px; background:#fff3cd; border:1px solid #ffc107; border-radius:8px; color:#856404; margin-bottom:24px;">
+<div style="padding:16px; background:var(--orange-bg); border:1px solid var(--orange); border-radius:8px; color:var(--text-secondary); margin-bottom:24px;">
   Filing text could not be retrieved. The filing may not be available on SEC or there may be a network issue.
 </div>
 {% endif %}
@@ -110,7 +110,7 @@
 <h3>Previous Analyses</h3>
 {% for a in existing_analyses %}
 <div style="border:1px solid var(--border); border-radius:8px; margin-bottom:16px; overflow:hidden; {% if just_ran == a.analysis_type and loop.first %}border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,102,204,0.15);{% endif %}">
-  <div style="padding:12px 16px; background:#f8f9fa; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+  <div style="padding:12px 16px; background:var(--surface-2); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
     <div>
       <strong>{{ analysis_types[a.analysis_type].label if a.analysis_type in analysis_types else a.analysis_type }}</strong>
       <span style="font-size:12px; color:var(--muted); margin-left:8px;">{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</span>

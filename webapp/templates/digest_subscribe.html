@@ -8,24 +8,24 @@
 </div>
 
 {% if request.query_params.get('sent') == 'ok' %}
-<div style="background:#e8f5e9; border-left:4px solid var(--green); padding:15px 20px; border-radius:0 8px 8px 0; margin-bottom:20px;">
+<div style="background:var(--green-bg); border-left:4px solid var(--green); padding:15px 20px; border-radius:0 8px 8px 0; margin-bottom:20px;">
   <strong style="color:var(--green);">Digest sent successfully.</strong>
   Check your inbox.
 </div>
 {% elif request.query_params.get('sent') == 'fail' %}
-<div style="background:#fce4ec; border-left:4px solid var(--red); padding:15px 20px; border-radius:0 8px 8px 0; margin-bottom:20px;">
+<div style="background:var(--red-bg); border-left:4px solid var(--red); padding:15px 20px; border-radius:0 8px 8px 0; margin-bottom:20px;">
   <strong style="color:var(--red);">Failed to send digest.</strong>
   Check SMTP/Azure configuration.
 </div>
 {% endif %}
 
 {% if submitted %}
-<div style="background:#e8f5e9; border-left:4px solid var(--green); padding:15px 20px; border-radius:0 8px 8px 0; margin-bottom:20px;">
+<div style="background:var(--green-bg); border-left:4px solid var(--green); padding:15px 20px; border-radius:0 8px 8px 0; margin-bottom:20px;">
   <strong style="color:var(--green);">Request submitted.</strong>
   Our team will review and approve your subscription. You will start receiving digests once approved.
 </div>
 {% elif error %}
-<div style="background:#fce4ec; border-left:4px solid var(--red); padding:15px 20px; border-radius:0 8px 8px 0; margin-bottom:20px;">
+<div style="background:var(--red-bg); border-left:4px solid var(--red); padding:15px 20px; border-radius:0 8px 8px 0; margin-bottom:20px;">
   <strong style="color:var(--red);">{{ error }}</strong>
 </div>
 {% endif %}

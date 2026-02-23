@@ -21,12 +21,12 @@
 </div>
 
 {% if cache_warming is defined and cache_warming %}
-<div class="what-changed" style="background:#e3f2fd; border-color:var(--blue);">
+<div class="what-changed" style="background:var(--blue-subtle); border-color:var(--blue);">
   <h2>Data is loading...</h2>
   <p>The screener cache is warming up. This page will be ready shortly. Please refresh in a few seconds.</p>
 </div>
 {% elif not data_available %}
-<div class="what-changed" style="background:#fff3e0; border-color:var(--orange);">
+<div class="what-changed" style="background:var(--orange-bg); border-color:var(--orange);">
   <h2>No Bloomberg data available</h2>
   <p>Upload Bloomberg .xlsx from the <a href="/admin/">Admin panel</a> before evaluating candidates.</p>
 </div>
@@ -53,7 +53,7 @@
 <!-- Loading Indicator -->
 <div id="loadingBar" style="display:none; text-align:center; padding:40px;">
   <div style="font-size:16px; color:var(--navy); margin-bottom:8px;">Evaluating candidates...</div>
-  <div style="width:200px; height:4px; background:#eee; border-radius:2px; margin:0 auto; overflow:hidden;">
+  <div style="width:200px; height:4px; background:var(--surface-3); border-radius:2px; margin:0 auto; overflow:hidden;">
     <div style="width:60%; height:100%; background:var(--blue); border-radius:2px; animation:loading 1.5s ease-in-out infinite;"></div>
   </div>
 </div>
@@ -111,18 +111,18 @@
   }
   .pillar-metric {
     display:flex; justify-content:space-between; font-size:12px;
-    padding:2px 0; border-bottom:1px solid #f0f0f0;
+    padding:2px 0; border-bottom:1px solid var(--border);
   }
   .pillar-metric:last-child { border-bottom:none; }
   .pillar-metric .label { color:var(--gray); }
   .pillar-metric .value { font-weight:600; }
 
-  .verdict-recommend { background:#e8f5e9; border-color:var(--green); }
-  .verdict-recommend .eval-card-header { background:#e8f5e9; }
-  .verdict-caution { background:#fdecea; border-color:var(--red); }
-  .verdict-caution .eval-card-header { background:#fdecea; }
-  .verdict-neutral { background:#fff8e1; border-color:var(--orange); }
-  .verdict-neutral .eval-card-header { background:#fff8e1; }
+  .verdict-recommend { background:var(--green-bg); border-color:var(--green); }
+  .verdict-recommend .eval-card-header { background:var(--green-bg); }
+  .verdict-caution { background:var(--red-bg); border-color:var(--red); }
+  .verdict-caution .eval-card-header { background:var(--red-bg); }
+  .verdict-neutral { background:var(--orange-bg); border-color:var(--orange); }
+  .verdict-neutral .eval-card-header { background:var(--orange-bg); }
 
   .verdict-badge {
     padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700; color:white;

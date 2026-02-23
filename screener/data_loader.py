@@ -67,8 +67,13 @@ def load_stock_data(path: Path | str | None = None) -> pd.DataFrame:
 def load_etp_data(path: Path | str | None = None) -> pd.DataFrame:
     """Load etp_data sheet (full US ETP universe, all columns)."""
     p = _resolve_path(path)
-    df = pd.read_excel(p, sheet_name="q_master_data", engine="openpyxl")
-    log.info("q_master_data loaded: %d rows x %d cols", len(df), len(df.columns))
+    # Try etp_data first (data/SCREENER/data.xlsx), fall back to q_master_data (The Dashboard.xlsx)
+    try:
+        df = pd.read_excel(p, sheet_name="etp_data", engine="openpyxl")
+        log.info("etp_data loaded: %d rows x %d cols", len(df), len(df.columns))
+    except ValueError:
+        df = pd.read_excel(p, sheet_name="q_master_data", engine="openpyxl")
+        log.info("q_master_data loaded: %d rows x %d cols", len(df), len(df.columns))
 
     # Normalize underlier ticker
     underlier_col = "q_category_attributes.map_li_underlier"

@@ -9,6 +9,7 @@ pdfminer.six>=20221105
 # Dashboard (legacy Streamlit)
 streamlit>=1.30.0
 openpyxl>=3.1.0
+scipy>=1.11.0
 
 # Web platform (FastAPI)
 fastapi>=0.115.0

@@ -20,12 +20,12 @@
 </div>
 
 {% if cache_warming is defined and cache_warming %}
-<div class="what-changed" style="background:#e3f2fd; border-color:var(--blue);">
+<div class="what-changed" style="background:var(--blue-subtle); border-color:var(--blue);">
   <h2>Data is loading...</h2>
   <p>The screener cache is warming up. This page will be ready shortly. Please refresh in a few seconds.</p>
 </div>
 {% elif not data_available %}
-<div class="what-changed" style="background:#fff3e0; border-color:var(--orange);">
+<div class="what-changed" style="background:var(--orange-bg); border-color:var(--orange);">
   <h2>No Bloomberg data available</h2>
   <p>Upload Bloomberg .xlsx from the <a href="/admin/">Admin panel</a> to view market landscape.</p>
 </div>
@@ -126,7 +126,7 @@
   </thead>
   <tbody>
     {% for r in top_2x %}
-    <tr{% if r.is_rex %} style="background:#f0f7ff;"{% endif %}>
+    <tr{% if r.is_rex %} style="background:var(--blue-subtle);"{% endif %}>
       <td style="color:var(--gray); font-size:12px;">{{ loop.index }}</td>
       <td class="ticker-col">{{ r.ticker }}</td>
       <td style="font-size:12px;">{{ r.issuer[:20] }}</td>
