@@ -163,3 +163,24 @@ python screener/generate_report.py evaluate SCCO BHP RIO
 ## Known Issues
 - Step 3 CSV uses `Series Name` column (not `fund_name`) for extracted fund names
 - Same-trust ticker scraping: tickers from one fund can bleed into another within the same trust
+
+## Agent Teams
+
+This project supports Claude Code Agent Teams for parallel development.
+
+### Available Specialists
+- `researcher` — Read-only codebase exploration (user-level)
+- `implementer` — Code writing with worktree isolation (user-level)
+- `reviewer` — Quality review and security check (user-level)
+- `architect` — System design and planning (user-level)
+- `sec-pipeline-specialist` — SEC filing pipeline domain expert (project-level)
+
+### File Ownership
+When spawning implementer teammates, assign each one specific files.
+No two implementers should edit the same file.
+Shared files (main.py, base.html, requirements.txt) are append-only.
+
+### Team Spawn Examples
+- "Create a team to build the market intelligence feature"
+- "Spawn a researcher and architect to plan the email reports system"
+- "Create a bug fix team for the screener issue"
