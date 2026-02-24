@@ -81,7 +81,7 @@ var MarketCharts = (function() {
         maintainAspectRatio: true,
         plugins: {
           datalabels: {
-            color: '#fff',
+            color: function() { return document.documentElement.getAttribute('data-theme') === 'dark' ? '#ffffff' : '#1E293B'; },
             font: { weight: 'bold', size: 11 },
             formatter: function(value, ctx) {
               var total = ctx.dataset.data.reduce(function(a,b){return a+b;},0);
@@ -306,6 +306,7 @@ var MarketCharts = (function() {
             font: { size: 13, weight: 'bold' },
             align: 'left',
             padding: 4,
+            hoverColor: '#ffffff',
             formatter: function(c) {
               if (!c.raw || !c.raw.g) return '';
               var name = c.raw.g;
@@ -323,6 +324,7 @@ var MarketCharts = (function() {
               return ticker && pct ? [ticker, pct] : ticker;
             },
             color: '#ffffff',
+            hoverColor: '#ffffff',
             font: { size: 10 },
             overflow: 'hidden',
             padding: 3

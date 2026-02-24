@@ -64,11 +64,11 @@ def rex_view(request: Request, product_type: str = Query(default="All"), fund_st
     try:
         cat_arg = category if category != "All" else None
         summary = svc.get_rex_summary(fund_structure=fund_structure, category=cat_arg)
-        trend = _parse_ts(svc.get_time_series(is_rex=True, category=cat_arg))
+        trend = _parse_ts(svc.get_time_series(is_rex=True, category=cat_arg, fund_type=fund_structure))
         # If a specific category is selected, also provide "all REX" trend for overlay
         trend_all = None
         if cat_arg:
-            trend_all = _parse_ts(svc.get_time_series(is_rex=True))
+            trend_all = _parse_ts(svc.get_time_series(is_rex=True, fund_type=fund_structure))
         return templates.TemplateResponse("market/rex.html", {
             "request": request,
             "available": True,

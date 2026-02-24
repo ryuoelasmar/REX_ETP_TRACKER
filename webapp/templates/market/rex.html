@@ -76,6 +76,10 @@
     <div class="kpi-value {{ 'positive' if summary.kpis.flow_1m > 0 else 'negative' if summary.kpis.flow_1m < 0 else '' }}">{{ summary.kpis.flow_1m_fmt }}</div>
   </div>
   <div class="kpi-card">
+    <div class="kpi-label">1M Market Growth</div>
+    <div class="kpi-value {{ 'positive' if summary.kpis.mkt_appreciation_positive else 'negative' }}">{{ summary.kpis.mkt_appreciation_fmt }}</div>
+  </div>
+  <div class="kpi-card">
     <div class="kpi-label">Best Performer</div>
     {% if summary.kpis.best_performer %}
     <div class="kpi-value positive" style="font-size:var(--text-md);">{{ summary.kpis.best_performer.ticker }}</div>
@@ -86,35 +90,41 @@
   </div>
 </div>
 
-{# -- Charts Row -- #}
+{# -- Charts Row: Pie + Unified Chart -- #}
 <div class="charts-row">
   <div class="chart-box">
     <h3>AUM by Suite</h3>
     <canvas id="suitesPieChart"></canvas>
   </div>
-  <div class="chart-box">
-    <h3>Total REX AUM Trend</h3>
-    <canvas id="rexTrendChart"></canvas>
-  </div>
-</div>
-
-{# -- Flow Bar Charts -- #}
-{% if summary.flow_chart is defined and summary.flow_chart.suites %}
-<div class="chart-box" style="margin-bottom:24px;">
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-    <h3 style="margin:0;">Suite Flows</h3>
-    <div style="display:flex; gap:4px;">
-      {% for period in ['1w','1m','3m','6m','ytd','1y'] %}
-      <button class="pill rex-flow-btn {% if loop.first %}active{% endif %}"
-              data-period="{{ period }}" onclick="showRexFlowPeriod('{{ period }}')">
-        {{ period.upper() }}
-      </button>
-      {% endfor %}
+  <div class="chart-box" id="unifiedChartBox">
+    {# -- Mode tabs -- #}
+    <div style="display:flex; gap:4px; margin-bottom:12px; flex-wrap:wrap;">
+      <button class="pill chart-mode-btn active" data-mode="aum" onclick="switchChartMode('aum')">AUM</button>
+      <button class="pill chart-mode-btn" data-mode="flows" onclick="switchChartMode('flows')">Flows</button>
+      <button class="pill chart-mode-btn" data-mode="volume" onclick="switchChartMode('volume')">Volume</button>
+      <button class="pill chart-mode-btn" data-mode="spread" onclick="switchChartMode('spread')">Bid-Ask</button>
+      <button class="pill chart-mode-btn" data-mode="appreciation" onclick="switchChartMode('appreciation')">Mkt Appreciation</button>
     </div>
+    {# -- AUM sub-controls -- #}
+    <div id="aumControls" style="margin-bottom:8px;">
+      <label style="font-size:0.78rem; cursor:pointer; color:var(--gray-500);">
+        <input type="checkbox" id="showSuiteBreakdown" onchange="switchChartMode('aum')"> Show Suite Breakdown
+      </label>
+    </div>
+    {# -- Flow sub-controls -- #}
+    <div id="flowControls" style="display:none; margin-bottom:8px;">
+      <div style="display:flex; gap:4px;">
+        {% for period in ['1w','1m','3m','6m','ytd','1y'] %}
+        <button class="pill rex-flow-btn {% if loop.first %}active{% endif %}"
+                data-period="{{ period }}" onclick="showRexFlowPeriod('{{ period }}')">
+          {{ period.upper() }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+    <canvas id="unifiedChart" height="200"></canvas>
   </div>
-  <canvas id="rexFlowBarChart" height="160"></canvas>
 </div>
-{% endif %}
 
 {# -- Best/Worst Performance with Metric Selector -- #}
 {% if summary.best5 or summary.worst5 %}
@@ -178,8 +188,11 @@
       <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 1)">AUM</th>
       <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 2)">1W Flow</th>
       <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 3)">1M Flow</th>
-      <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 4)">Mkt Share</th>
-      <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 5)"># Funds</th>
+      <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 4)">Mkt Appr</th>
+      <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 5)">Avg Vol</th>
+      <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 6)">Avg Spread</th>
+      <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 7)">Mkt Share</th>
+      <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 8)"># Funds</th>
       <th style="text-align:center;">Top Mover</th>
     </tr>
   </thead>
@@ -200,13 +213,16 @@
       </td>
       <td class="num-cell {{ 'positive' if suite.kpis.flow_1w > 0 else 'negative' if suite.kpis.flow_1w < 0 else '' }}" style="text-align:center;" data-sort="{{ suite.kpis.flow_1w|default(0) }}">{{ suite.kpis.flow_1w_fmt }}</td>
       <td class="num-cell {{ 'positive' if suite.kpis.flow_1m > 0 else 'negative' if suite.kpis.flow_1m < 0 else '' }}" style="text-align:center;" data-sort="{{ suite.kpis.flow_1m|default(0) }}">{{ suite.kpis.flow_1m_fmt }}</td>
+      <td class="num-cell {{ 'positive' if suite.kpis.mkt_appreciation_positive else 'negative' }}" style="text-align:center;" data-sort="{{ suite.kpis.mkt_appreciation|default(0) }}">{{ suite.kpis.mkt_appreciation_fmt }}</td>
+      <td class="num-cell" style="text-align:center;" data-sort="{{ suite.kpis.volume|default(0) }}">{{ suite.kpis.volume_fmt }}</td>
+      <td class="num-cell" style="text-align:center;" data-sort="{{ suite.kpis.avg_spread|default(0) }}">{{ suite.kpis.avg_spread_fmt }}</td>
       <td class="num-cell" style="text-align:center;" data-sort="{{ suite.market_share|default(0) }}">{{ suite.market_share }}%</td>
       <td class="num-cell" style="text-align:center;" data-sort="{{ suite.kpis.num_products|default(0) }}">{{ suite.kpis.num_products }}</td>
       <td class="movers-cell" style="text-align:center;">{% for m in suite.top_movers[:1] %}<span class="{{ 'positive' if m.flow_raw > 0 else 'negative' if m.flow_raw < 0 else '' }}">{{ m.ticker }} {{ m.flow }}</span>{% endfor %}</td>
     </tr>
     {# Collapsible product rows for this suite #}
     <tr id="suite{{ loop.index }}" style="display:none;">
-      <td colspan="7" style="padding:0;">
+      <td colspan="10" style="padding:0;">
         <table class="data-table" style="font-size:0.78rem; margin:0; border:none;">
           <thead>
             <tr style="background:var(--surface-2, #f1f5f9);">
@@ -360,7 +376,7 @@ document.addEventListener('DOMContentLoaded', function() {
         maintainAspectRatio: true,
         plugins: {
           datalabels: {
-            color: '#fff',
+            color: function() { return RexTheme.isDark() ? '#ffffff' : '#1E293B'; },
             font: { weight: 'bold', size: 11 },
             formatter: function(value, ctx) {
               var total = ctx.dataset.data.reduce(function(a,b){return a+b;},0);
@@ -391,32 +407,235 @@ document.addEventListener('DOMContentLoaded', function() {
   {% endif %}
 
   {% if trend %}
-  {# -- Line chart with optional category overlay -- #}
+  {# -- Unified chart data -- #}
   var trendData = {{ trend|tojson }};
-  var trendDatasets = [{label: 'REX AUM', data: trendData.values, color: '#1E40AF'}];
   {% if trend_all is defined and trend_all %}
   var trendAllData = {{ trend_all|tojson }};
-  trendDatasets.unshift({label: 'Total REX AUM', data: trendAllData.values, color: '#93C5FD'});
-  trendDatasets[1].label = 'Category AUM';
-  {% endif %}
-  MarketCharts.renderLineChart('rexTrendChart', trendData.labels, trendDatasets);
+  {% else %}
+  var trendAllData = null;
   {% endif %}
 
-  {% if summary and summary.flow_chart is defined %}
-  {# -- Flow bar chart -- #}
-  var flowData = {{ summary.flow_chart|tojson }};
-  var _rexFlowChart = null;
+  {% if summary and summary.chart_data is defined %}
+  var chartData = {{ summary.chart_data|tojson }};
+  {% else %}
+  var chartData = {flow: {{ summary.flow_chart|tojson if summary and summary.flow_chart is defined else '{}' }}, volume: {}, spread: {}, appreciation: {}, suite_ts: {}};
+  {% endif %}
+
+  var _unifiedChart = null;
+  var _currentChartMode = 'aum';
+  var _currentFlowPeriod = '1w';
+
+  function fmtMoney(val) {
+    if (val === null || val === undefined || isNaN(val)) return '$0';
+    var sign = val < 0 ? '-' : '';
+    var abs = Math.abs(val);
+    if (abs >= 1000) return sign + '$' + (abs / 1000).toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'B';
+    if (abs >= 1) return sign + '$' + abs.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'M';
+    return sign + '$' + (abs * 1000).toFixed(0) + 'K';
+  }
+  function fmtFlow(val) { return (val >= 0 ? '+' : '') + fmtMoney(val); }
+  function fmtVol(val) {
+    if (val >= 1000000) return (val/1000000).toFixed(1) + 'M';
+    if (val >= 1000) return Math.round(val/1000) + 'K';
+    return Math.round(val).toString();
+  }
+
+  var SUITE_CHART_COLORS = ['#1E40AF','#3B82F6','#0EA5E9','#6366F1','#8B5CF6','#A855F7','#EC4899','#F43F5E','#F97316','#EAB308','#22C55E','#14B8A6'];
+
+  window.switchChartMode = function(mode) {
+    _currentChartMode = mode;
+    // Update mode button states
+    document.querySelectorAll('.chart-mode-btn').forEach(function(b) {
+      b.classList.toggle('active', b.getAttribute('data-mode') === mode);
+    });
+    // Show/hide sub-controls
+    document.getElementById('aumControls').style.display = mode === 'aum' ? '' : 'none';
+    document.getElementById('flowControls').style.display = mode === 'flows' ? '' : 'none';
+
+    // Destroy existing chart
+    if (_unifiedChart) { _unifiedChart.destroy(); _unifiedChart = null; }
+
+    var ctx = document.getElementById('unifiedChart');
+    if (!ctx) return;
+    var isDark = RexTheme.isDark();
+    var labelColor = isDark ? '#94a3b8' : '#6b7280';
+    var gridColor = isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6';
+
+    if (mode === 'aum') {
+      // Line chart: AUM trend, optionally with suite breakdown
+      var showBreakdown = document.getElementById('showSuiteBreakdown') && document.getElementById('showSuiteBreakdown').checked;
+      var datasets = [];
+      if (showBreakdown && chartData.suite_ts && chartData.suite_ts.suites) {
+        var suiteNames = Object.keys(chartData.suite_ts.suites);
+        suiteNames.forEach(function(name, i) {
+          datasets.push({
+            label: name,
+            data: chartData.suite_ts.suites[name],
+            borderColor: SUITE_CHART_COLORS[i % SUITE_CHART_COLORS.length],
+            backgroundColor: SUITE_CHART_COLORS[i % SUITE_CHART_COLORS.length] + '20',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 1,
+            borderWidth: 2
+          });
+        });
+        var labels = chartData.suite_ts.labels || trendData.labels;
+      } else {
+        datasets.push({
+          label: 'REX AUM',
+          data: trendData.values,
+          borderColor: '#1E40AF',
+          backgroundColor: '#1E40AF20',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 2,
+          borderWidth: 2
+        });
+        if (trendAllData) {
+          datasets.unshift({
+            label: 'Total REX AUM',
+            data: trendAllData.values,
+            borderColor: '#93C5FD',
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0.3,
+            pointRadius: 2,
+            borderWidth: 2
+          });
+          datasets[1].label = 'Category AUM';
+        }
+        var labels = trendData.labels;
+      }
+      _unifiedChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: labels, datasets: datasets },
+        options: {
+          responsive: true, maintainAspectRatio: true,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 12, font: { size: 10 }, color: labelColor }, grid: { display: false } },
+            y: { ticks: { callback: function(v) { return fmtMoney(v); }, font: { size: 10 }, color: labelColor }, grid: { color: gridColor } }
+          },
+          plugins: {
+            datalabels: { display: false },
+            legend: { display: datasets.length > 1, labels: { font: { size: 11 }, usePointStyle: true, color: labelColor } },
+            tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': ' + fmtMoney(c.parsed.y); } } }
+          }
+        }
+      });
+
+    } else if (mode === 'flows') {
+      showRexFlowPeriod(_currentFlowPeriod);
+
+    } else if (mode === 'volume') {
+      var vd = chartData.volume || {};
+      _unifiedChart = new Chart(ctx, {
+        type: 'bar',
+        plugins: [ChartDataLabels],
+        data: {
+          labels: vd.suites || [],
+          datasets: [{ data: vd.values || [], backgroundColor: '#3B82F6', borderRadius: 3 }]
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: true,
+          layout: { padding: { right: 80 } },
+          scales: {
+            x: { display: false, grace: '15%' },
+            y: { ticks: { font: { size: 11, weight: '600' }, color: labelColor }, grid: { display: false } }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: function(c) { return fmtVol(c.parsed.x); } } },
+            datalabels: {
+              anchor: 'end', align: 'right',
+              color: isDark ? '#e2e8f0' : '#1E293B',
+              font: { size: 11, weight: '600' },
+              formatter: function(v) { return fmtVol(v); },
+              clip: false
+            }
+          }
+        }
+      });
+
+    } else if (mode === 'spread') {
+      var sd = chartData.spread || {};
+      _unifiedChart = new Chart(ctx, {
+        type: 'bar',
+        plugins: [ChartDataLabels],
+        data: {
+          labels: sd.suites || [],
+          datasets: [{ data: sd.values || [], backgroundColor: '#6366F1', borderRadius: 3 }]
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: true,
+          layout: { padding: { right: 80 } },
+          scales: {
+            x: { display: false, grace: '15%' },
+            y: { ticks: { font: { size: 11, weight: '600' }, color: labelColor }, grid: { display: false } }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: function(c) { return '$' + c.parsed.x.toFixed(4); } } },
+            datalabels: {
+              anchor: 'end', align: 'right',
+              color: isDark ? '#e2e8f0' : '#1E293B',
+              font: { size: 11, weight: '600' },
+              formatter: function(v) { return '$' + v.toFixed(4); },
+              clip: false
+            }
+          }
+        }
+      });
+
+    } else if (mode === 'appreciation') {
+      var ad = chartData.appreciation || {};
+      var vals = ad.values || [];
+      var colors = vals.map(function(v) { return v >= 0 ? '#059669' : '#DC2626'; });
+      _unifiedChart = new Chart(ctx, {
+        type: 'bar',
+        plugins: [ChartDataLabels],
+        data: {
+          labels: ad.suites || [],
+          datasets: [{ data: vals, backgroundColor: colors, borderRadius: 3 }]
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: true,
+          layout: { padding: { left: 10, right: 100 } },
+          scales: {
+            x: { display: false, grace: '20%' },
+            y: { ticks: { font: { size: 11, weight: '600' }, color: labelColor }, grid: { display: false } }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: function(c) { return fmtFlow(c.parsed.x); } } },
+            datalabels: {
+              anchor: 'end',
+              align: function(c) { return c.dataset.data[c.dataIndex] >= 0 ? 'right' : 'left'; },
+              color: isDark ? '#e2e8f0' : '#1E293B',
+              font: { size: 11, weight: '600' },
+              formatter: function(v) { return v === 0 ? '' : fmtFlow(v); },
+              clip: false
+            }
+          }
+        }
+      });
+    }
+  };
 
   window.showRexFlowPeriod = function(period) {
+    _currentFlowPeriod = period;
     document.querySelectorAll('.rex-flow-btn').forEach(function(b) {
       b.classList.toggle('active', b.getAttribute('data-period') === period);
     });
+    var flowData = chartData.flow || {};
     var key = 'flow_' + period;
     var values = flowData[key];
     if (!values) return;
     var colors = values.map(function(v) { return v >= 0 ? '#059669' : '#DC2626'; });
-    if (_rexFlowChart) _rexFlowChart.destroy();
-    _rexFlowChart = new Chart(document.getElementById('rexFlowBarChart').getContext('2d'), {
+    var isDark = RexTheme.isDark();
+    var labelColor = isDark ? '#94a3b8' : '#374151';
+    if (_unifiedChart) { _unifiedChart.destroy(); _unifiedChart = null; }
+    _unifiedChart = new Chart(document.getElementById('unifiedChart').getContext('2d'), {
       type: 'bar',
       plugins: [ChartDataLabels],
       data: {
@@ -429,33 +648,27 @@ document.addEventListener('DOMContentLoaded', function() {
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: { label: function(ctx) {
-            var v = ctx.parsed.x;
-            var abs = Math.abs(v);
-            var s = abs >= 1000 ? (abs/1000).toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'B' : abs.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'M';
-            return (v >= 0 ? '+' : '-') + '$' + s;
+            return fmtFlow(ctx.parsed.x);
           }}},
           datalabels: {
             anchor: 'end',
             align: function(ctx) { return ctx.dataset.data[ctx.dataIndex] >= 0 ? 'right' : 'left'; },
-            color: RexTheme.isDark() ? '#e2e8f0' : '#1E293B',
+            color: isDark ? '#e2e8f0' : '#1E293B',
             font: { size: 11, weight: '600' },
-            formatter: function(value) {
-              if (value === 0) return '';
-              var abs = Math.abs(value);
-              var s = abs >= 1000 ? (abs/1000).toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'B' : abs.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'M';
-              return (value >= 0 ? '+' : '-') + '$' + s;
-            },
+            formatter: function(value) { return value === 0 ? '' : fmtFlow(value); },
             clip: false
           }
         },
         scales: {
           x: { display: false, grace: '20%' },
-          y: { ticks: { font: { size: 11, weight: '600' }, color: RexTheme.isDark() ? '#94a3b8' : '#374151' }, grid: { display: false } }
+          y: { ticks: { font: { size: 11, weight: '600' }, color: labelColor }, grid: { display: false } }
         }
       }
     });
   };
-  if (flowData.suites && flowData.suites.length > 0) showRexFlowPeriod('1w');
+
+  // Initialize with AUM mode
+  switchChartMode('aum');
   {% endif %}
 });
 </script>

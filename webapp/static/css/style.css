@@ -797,6 +797,8 @@ tr.risk-high-row:hover { background: #ffe0b2; }
 [data-theme="dark"] .select-sm { background: var(--input-bg); border-color: var(--input-border); color: var(--input-color); }
 [data-theme="dark"] .pill { background: var(--surface-2); color: var(--text-secondary); border-color: var(--card-border); }
 [data-theme="dark"] .pill:hover { background: var(--surface-3); }
+[data-theme="dark"] .pill.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+[data-theme="dark"] .pill.active:hover { background: var(--blue-hover); }
 
 /* Dark mode home page */
 [data-theme="dark"] .home-card { background: var(--surface-1); border-color: var(--surface-3); }

@@ -92,6 +92,8 @@ def _load_fresh() -> dict[str, Any]:
         "t_w3.total_return_1week", "t_w3.total_return_1month",
         "t_w3.annualized_yield",
         "t_w2.expense_ratio",
+        "t_w2.average_vol_30day",
+        "t_w2.average_bidask_spread",
     ] + [f"t_w4.aum_{i}" for i in range(1, 37)]
 
     for col in _NUMERIC:
@@ -251,6 +253,43 @@ def get_rex_summary(fund_structure: str | None = None, category: str | None = No
         overall["avg_yield"] = 0.0
         overall["avg_yield_fmt"] = "N/A"
 
+    # --- Market Appreciation (overall) ---
+    total_aum_1 = float(rex["t_w4.aum_1"].sum()) if "t_w4.aum_1" in rex.columns else 0.0
+    total_flow_1m = float(rex["t_w4.fund_flow_1month"].sum()) if "t_w4.fund_flow_1month" in rex.columns else 0.0
+    mkt_appreciation = aum_curr - total_aum_1 - total_flow_1m
+    overall["mkt_appreciation"] = round(mkt_appreciation, 2)
+    overall["mkt_appreciation_fmt"] = _fmt_flow(mkt_appreciation)
+    overall["mkt_appreciation_positive"] = mkt_appreciation >= 0
+
+    # --- Overall Volume & Spread ---
+    if "t_w2.average_vol_30day" in rex.columns:
+        overall["total_volume"] = round(float(rex["t_w2.average_vol_30day"].sum()), 0)
+        vol = overall["total_volume"]
+        if vol >= 1_000_000:
+            overall["total_volume_fmt"] = f"{vol/1_000_000:,.1f}M"
+        elif vol >= 1_000:
+            overall["total_volume_fmt"] = f"{vol/1_000:,.0f}K"
+        else:
+            overall["total_volume_fmt"] = f"{vol:,.0f}"
+    else:
+        overall["total_volume"] = 0
+        overall["total_volume_fmt"] = "N/A"
+
+    if "t_w2.average_bidask_spread" in rex.columns:
+        aum_vals = rex["t_w4.aum"]
+        spread_vals = rex["t_w2.average_bidask_spread"]
+        valid_spread = (aum_vals > 0) & (spread_vals > 0)
+        if valid_spread.any():
+            weighted = float((spread_vals[valid_spread] * aum_vals[valid_spread]).sum() / aum_vals[valid_spread].sum())
+            overall["avg_spread"] = round(weighted, 4)
+            overall["avg_spread_fmt"] = f"${weighted:.4f}"
+        else:
+            overall["avg_spread"] = 0.0
+            overall["avg_spread_fmt"] = "N/A"
+    else:
+        overall["avg_spread"] = 0.0
+        overall["avg_spread_fmt"] = "N/A"
+
     # --- Best performer (1M total return) ---
     ret_col = "t_w3.total_return_1month"
     if ret_col in rex.columns and not rex.empty:
@@ -351,6 +390,10 @@ def get_rex_summary(fund_structure: str | None = None, category: str | None = No
 
     # --- Flow data arrays for bar chart (per suite) ---
     flow_chart_data = {"suites": [], "flow_1w": [], "flow_1m": [], "flow_3m": [], "flow_6m": [], "flow_ytd": [], "flow_1y": []}
+    # --- Chart data arrays for unified chart ---
+    volume_chart_data = {"suites": [], "values": []}
+    spread_chart_data = {"suites": [], "values": []}
+    appreciation_chart_data = {"suites": [], "values": []}
 
     suites = []
     for suite_name in _SUITE_ORDER:
@@ -400,6 +443,45 @@ def get_rex_summary(fund_structure: str | None = None, category: str | None = No
             })
 
         kpis = get_kpis(rex_suite)
+
+        # Suite market appreciation
+        s_aum_curr = float(rex_suite["t_w4.aum"].sum())
+        s_aum_prev = float(rex_suite["t_w4.aum_1"].sum()) if "t_w4.aum_1" in rex_suite.columns else 0.0
+        s_flow_1m = float(rex_suite["t_w4.fund_flow_1month"].sum()) if "t_w4.fund_flow_1month" in rex_suite.columns else 0.0
+        s_mkt_appr = s_aum_curr - s_aum_prev - s_flow_1m
+        kpis["mkt_appreciation"] = round(s_mkt_appr, 2)
+        kpis["mkt_appreciation_fmt"] = _fmt_flow(s_mkt_appr)
+        kpis["mkt_appreciation_positive"] = s_mkt_appr >= 0
+
+        # Suite volume (30-day avg sum)
+        if "t_w2.average_vol_30day" in rex_suite.columns:
+            s_vol = float(rex_suite["t_w2.average_vol_30day"].sum())
+            kpis["volume"] = round(s_vol, 0)
+            if s_vol >= 1_000_000:
+                kpis["volume_fmt"] = f"{s_vol/1_000_000:,.1f}M"
+            elif s_vol >= 1_000:
+                kpis["volume_fmt"] = f"{s_vol/1_000:,.0f}K"
+            else:
+                kpis["volume_fmt"] = f"{s_vol:,.0f}"
+        else:
+            kpis["volume"] = 0
+            kpis["volume_fmt"] = "N/A"
+
+        # Suite bid-ask spread (AUM-weighted avg)
+        if "t_w2.average_bidask_spread" in rex_suite.columns:
+            s_aum_col = rex_suite["t_w4.aum"]
+            s_spread_col = rex_suite["t_w2.average_bidask_spread"]
+            s_valid = (s_aum_col > 0) & (s_spread_col > 0)
+            if s_valid.any():
+                s_weighted = float((s_spread_col[s_valid] * s_aum_col[s_valid]).sum() / s_aum_col[s_valid].sum())
+                kpis["avg_spread"] = round(s_weighted, 4)
+                kpis["avg_spread_fmt"] = f"${s_weighted:.4f}"
+            else:
+                kpis["avg_spread"] = 0.0
+                kpis["avg_spread_fmt"] = "N/A"
+        else:
+            kpis["avg_spread"] = 0.0
+            kpis["avg_spread_fmt"] = "N/A"
 
         # Suite avg yield
         if yield_col in rex_suite.columns:
@@ -454,6 +536,14 @@ def get_rex_summary(fund_structure: str | None = None, category: str | None = No
         flow_chart_data["flow_ytd"].append(round(flow_ytd, 2))
         flow_chart_data["flow_1y"].append(round(flow_1y, 2))
 
+        # Unified chart data arrays
+        volume_chart_data["suites"].append(display_name)
+        volume_chart_data["values"].append(round(kpis["volume"], 0))
+        spread_chart_data["suites"].append(display_name)
+        spread_chart_data["values"].append(round(kpis["avg_spread"], 4))
+        appreciation_chart_data["suites"].append(display_name)
+        appreciation_chart_data["values"].append(round(kpis["mkt_appreciation"], 2))
+
         suites.append({
             "name": suite_name,
             "rex_name": _REX_SUITE_NAMES.get(suite_name, suite_name),
@@ -473,6 +563,18 @@ def get_rex_summary(fund_structure: str | None = None, category: str | None = No
     pie_labels = [s["short_name"] for s in suites]
     pie_values = [round(s["kpis"]["total_aum"], 2) for s in suites]
 
+    # --- Suite-level time series (for AUM breakdown toggle) ---
+    suite_ts = _build_suite_time_series(rex, fund_structure=None)
+
+    # --- Unified chart_data dict ---
+    chart_data = {
+        "flow": flow_chart_data,
+        "volume": volume_chart_data,
+        "spread": spread_chart_data,
+        "appreciation": appreciation_chart_data,
+        "suite_ts": suite_ts,
+    }
+
     return {
         "kpis": overall,
         "overall": overall,
@@ -484,7 +586,42 @@ def get_rex_summary(fund_structure: str | None = None, category: str | None = No
         "worst5": worst5,
         "perf_metrics": perf_metrics,
         "flow_chart": flow_chart_data,
+        "chart_data": chart_data,
     }
+
+
+def _build_suite_time_series(rex_df: pd.DataFrame, fund_structure: str | None = None) -> dict:
+    """Build per-suite monthly AUM from snapshot columns (aum_1..aum_36).
+
+    Returns: {"labels": ["Jan 2024", ...], "total": [...], "suites": {"T-REX": [...], ...}}
+    """
+    now = _dt.now()
+    labels = []
+    total_vals = []
+    suite_vals: dict[str, list[float]] = {}
+
+    # Build 12-month + current = 13 data points
+    aum_cols = [(i, f"t_w4.aum_{i}") for i in range(12, 0, -1)] + [(0, "t_w4.aum")]
+    for i, col in aum_cols:
+        if col not in rex_df.columns:
+            continue
+        try:
+            from dateutil.relativedelta import relativedelta
+            dt = now - relativedelta(months=i)
+        except ImportError:
+            from datetime import timedelta
+            dt = now - timedelta(days=30 * i)
+        labels.append(dt.strftime("%b %Y"))
+        total_vals.append(round(float(rex_df[col].sum()), 2))
+
+        for suite_name in _SUITE_ORDER:
+            display_name = _REX_SUITE_NAMES.get(suite_name, suite_name)
+            if display_name not in suite_vals:
+                suite_vals[display_name] = []
+            suite_df = rex_df[rex_df["category_display"].str.strip() == suite_name.strip()] if not rex_df.empty else rex_df
+            suite_vals[display_name].append(round(float(suite_df[col].sum()), 2))
+
+    return {"labels": labels, "total": total_vals, "suites": suite_vals}
 
 
 def _suite_short(name: str) -> str:
@@ -1133,8 +1270,15 @@ def get_underlier_summary(underlier_type: str = "income", underlier: str | None 
 
 #  Time Series
 
-def get_time_series(category: str | None = None, is_rex: bool | None = None) -> dict:
-    """Return aggregated monthly AUM time series for charts."""
+def get_time_series(category: str | None = None, is_rex: bool | None = None, fund_type: str | None = None) -> dict:
+    """Return aggregated monthly AUM time series for charts.
+
+    Args:
+        category: Filter to a specific category_display value.
+        is_rex: Filter to REX-only (True) or non-REX (False).
+        fund_type: "ETF", "ETN", or "ETF,ETN" to filter by fund structure.
+                   Requires joining with master data by ticker.
+    """
     ts = get_time_series_df()
 
     if category and category != "All":
@@ -1144,6 +1288,16 @@ def get_time_series(category: str | None = None, is_rex: bool | None = None) -> 
 
     if is_rex is not None:
         ts = ts[ts["is_rex"] == is_rex]
+
+    # Fund type filter: join with master data to get fund_type per ticker
+    if fund_type and fund_type != "all":
+        master = get_master_data()
+        fund_type_col = next((c for c in master.columns if c.lower().strip() == "fund_type"), None)
+        ticker_col = "ticker" if "ticker" in ts.columns else None
+        if fund_type_col and ticker_col:
+            types = [t.strip() for t in fund_type.split(",") if t.strip()]
+            valid_tickers = set(master[master[fund_type_col].isin(types)]["ticker"].dropna().unique())
+            ts = ts[ts[ticker_col].isin(valid_tickers)]
 
     if ts.empty or "date" not in ts.columns:
         return {"labels": "[]", "values": "[]"}

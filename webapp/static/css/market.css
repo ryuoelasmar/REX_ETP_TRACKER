@@ -852,6 +852,16 @@
   color: var(--text-primary);
 }
 
+[data-theme="dark"] .category-pills .pill.active {
+  background: var(--blue);
+  color: #fff;
+}
+
+[data-theme="dark"] .market-nav-pills .pill.active {
+  background: var(--blue);
+  color: #fff;
+}
+
 /* Dark mode underlier */
 [data-theme="dark"] .underlier-list {
   border-color: var(--gray-200);
