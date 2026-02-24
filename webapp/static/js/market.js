@@ -36,12 +36,19 @@ var MarketCharts = (function() {
     };
   }
 
+  function addCommas(s) {
+    var parts = s.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts.join('.');
+  }
+
   function fmtMoney(val) {
     if (val === null || val === undefined || isNaN(val)) return '$0';
+    var sign = val < 0 ? '-' : '';
     var abs = Math.abs(val);
-    if (abs >= 1000) return '$' + (val / 1000).toFixed(1) + 'B';
-    if (abs >= 1) return '$' + val.toFixed(1) + 'M';
-    return '$' + (val * 1000).toFixed(0) + 'K';
+    if (abs >= 1000) return sign + '$' + addCommas((abs / 1000).toFixed(1)) + 'B';
+    if (abs >= 1) return sign + '$' + addCommas(abs.toFixed(1)) + 'M';
+    return sign + '$' + addCommas((abs * 1000).toFixed(0)) + 'K';
   }
 
   function renderPieChart(canvasId, labels, values) {
@@ -260,8 +267,10 @@ var MarketCharts = (function() {
 
     // Build color map by issuer (sorted by total AUM for consistent ordering)
     var issuerAum = {};
+    var totalAum = 0;
     products.forEach(function(p) {
       issuerAum[p.group] = (issuerAum[p.group] || 0) + p.value;
+      totalAum += p.value;
     });
     var sortedIssuers = Object.keys(issuerAum).sort(function(a, b) {
       return issuerAum[b] - issuerAum[a];
@@ -298,7 +307,11 @@ var MarketCharts = (function() {
             align: 'left',
             padding: 4,
             formatter: function(c) {
-              return c.raw && c.raw.g ? c.raw.g : '';
+              if (!c.raw || !c.raw.g) return '';
+              var name = c.raw.g;
+              var grpAum = issuerAum[name] || 0;
+              var pct = totalAum > 0 ? (grpAum / totalAum * 100).toFixed(1) : '0.0';
+              return name + ' ' + pct + '%';
             }
           },
           labels: {
@@ -306,8 +319,8 @@ var MarketCharts = (function() {
             formatter: function(c) {
               if (!c.raw || !c.raw._data) return '';
               var ticker = c.raw._data.label || '';
-              var aum = c.raw._data.aum_fmt || '';
-              return ticker && aum ? [ticker, aum] : ticker;
+              var pct = c.raw._data.pct != null ? c.raw._data.pct.toFixed(1) + '%' : '';
+              return ticker && pct ? [ticker, pct] : ticker;
             },
             color: '#ffffff',
             font: { size: 10 },
@@ -334,13 +347,15 @@ var MarketCharts = (function() {
                   var lines = [];
                   if (raw._data.ticker) lines.push('Ticker: ' + raw._data.ticker);
                   if (raw._data.aum_fmt) lines.push('AUM: ' + raw._data.aum_fmt);
+                  if (raw._data.pct != null) lines.push('Share: ' + raw._data.pct.toFixed(2) + '%');
                   if (raw._data.issuer) lines.push('Issuer: ' + raw._data.issuer);
                   if (raw._data.is_rex) lines.push('REX Product');
                   return lines;
                 }
                 // Group-level: show issuer name and total
-                var total = item.raw.v || 0;
-                return 'Total AUM: $' + (total / 1e3).toFixed(1) + 'B';
+                var grpTotal = item.raw.v || 0;
+                var grpPct = totalAum > 0 ? (grpTotal / totalAum * 100).toFixed(1) : '0.0';
+                return ['Total AUM: ' + fmtMoney(grpTotal), 'Market Share: ' + grpPct + '%'];
               }
             }
           },
@@ -514,7 +529,7 @@ var MarketFilters = (function() {
 
     // Read slicer values
     var params = new URLSearchParams();
-    if (cat) params.set('cat', encodeURIComponent(cat));
+    if (cat) params.set('cat', cat);
     document.querySelectorAll('.slicer-select').forEach(function(sel) {
       if (sel.value) {
         params.set(sel.getAttribute('data-field'), sel.value);

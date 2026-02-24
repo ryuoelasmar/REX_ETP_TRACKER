@@ -97,9 +97,9 @@
 
 {# Treemap Section #}
 {% if treemap is defined and treemap and treemap.issuers %}
-<div class="chart-box" style="margin-bottom:24px; padding:16px;">
-  <h3>Market Landscape — {{ category or 'All Categories' }}</h3>
-  <div class="treemap-container" style="height:550px;">
+<div class="chart-box" style="margin-bottom:24px; padding:16px; padding-bottom:8px;">
+  <h3 style="margin-bottom:8px;">Market Landscape — {{ category or 'All Categories' }}</h3>
+  <div style="position:relative; height:480px;">
     <canvas id="categoryTreemap"></canvas>
   </div>
 </div>

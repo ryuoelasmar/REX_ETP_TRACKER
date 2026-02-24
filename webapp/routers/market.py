@@ -106,6 +106,15 @@ def category_view(
     """Category View - competitive landscape with dynamic filters."""
     svc = _svc()
     available = svc.data_available()
+
+    # Default to first category instead of "All" (aggregating all categories is misleading)
+    if cat == "All" and available:
+        first_cat = svc.ALL_CATEGORIES[0] if svc.ALL_CATEGORIES else "Crypto"
+        return RedirectResponse(
+            f"/market/category?cat={urllib.parse.quote(first_cat)}&fund_structure={fund_structure}",
+            status_code=302,
+        )
+
     if not available:
         return templates.TemplateResponse("market/category.html", {
             "request": request,

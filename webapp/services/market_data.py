@@ -143,13 +143,14 @@ def get_time_series_df() -> pd.DataFrame:
 
 
 def _fmt_currency(val: float) -> str:
-    """Format a value in millions: returns '$X.XB' or '$X.XM'."""
+    """Format a value in millions: returns '$X,XXX.XB' or '$X.XM' with commas."""
     if val is None or (isinstance(val, float) and math.isnan(val)):
         return "$0"
     if abs(val) >= 1_000:
-        return f"${val/1_000:.1f}B"
+        b = val / 1_000
+        return f"${b:,.1f}B"
     if abs(val) >= 1:
-        return f"${val:.1f}M"
+        return f"${val:,.1f}M"
     return f"${val:.2f}M"
 
 
@@ -746,6 +747,7 @@ def get_treemap_data(category: str | None = None, fund_type: str | None = None, 
         for _, row in df.iterrows():
             aum = float(row.get("t_w4.aum", 0))
             issuer_name = str(row.get("issuer_display", "Other")).strip() or "Other"
+            pct = round((aum / total * 100) if total > 0 else 0.0, 2)
             p = {
                 "label": str(row.get("ticker_clean", row.get("ticker", ""))),
                 "value": round(aum, 2),
@@ -755,6 +757,7 @@ def get_treemap_data(category: str | None = None, fund_type: str | None = None, 
                 "fund_name": str(row.get("fund_name", "")),
                 "issuer": issuer_name,
                 "aum_fmt": _fmt_currency(aum),
+                "pct": pct,
             }
             products.append(p)
 

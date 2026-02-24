@@ -55,14 +55,21 @@ def test_rex_view_with_category(client):
     assert r.status_code == 200
 
 
+def test_category_view_redirects_to_first_category(client):
+    """Without a cat param, should redirect to first category."""
+    r = client.get("/market/category", follow_redirects=False)
+    assert r.status_code == 302
+    assert "/market/category?cat=" in r.headers.get("location", "")
+
+
 def test_category_view_loads(client):
-    r = client.get("/market/category")
+    r = client.get("/market/category?cat=Crypto")
     assert r.status_code == 200
 
 
 def test_category_view_default_etf(client):
     """Default fund_structure should be ETF."""
-    r = client.get("/market/category")
+    r = client.get("/market/category?cat=Crypto")
     assert r.status_code == 200
 
 

@@ -137,13 +137,13 @@
   <div class="chart-box">
     <h3 id="best5Title">Best 5 by 1M Return</h3>
     <table class="data-table" style="font-size:0.82rem;">
-      <thead><tr><th>Ticker</th><th>Fund Name</th><th id="best5MetricHeader">1M Return</th></tr></thead>
+      <thead><tr><th>Ticker</th><th>Fund Name</th><th style="text-align:center;" id="best5MetricHeader">1M Return</th></tr></thead>
       <tbody id="best5Body">
         {% for p in summary.best5 %}
         <tr>
           <td class="ticker-col">{{ p.ticker }}</td>
-          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ p.fund_name }}</td>
-          <td class="num-cell positive">{{ p.return_1m_fmt }}</td>
+          <td style="word-wrap:break-word; white-space:normal; min-width:180px;">{{ p.fund_name }}</td>
+          <td class="num-cell positive" style="text-align:center;">{{ p.return_1m_fmt }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -152,13 +152,13 @@
   <div class="chart-box">
     <h3 id="worst5Title">Worst 5 by 1M Return</h3>
     <table class="data-table" style="font-size:0.82rem;">
-      <thead><tr><th>Ticker</th><th>Fund Name</th><th id="worst5MetricHeader">1M Return</th></tr></thead>
+      <thead><tr><th>Ticker</th><th>Fund Name</th><th style="text-align:center;" id="worst5MetricHeader">1M Return</th></tr></thead>
       <tbody id="worst5Body">
         {% for p in summary.worst5 %}
         <tr>
           <td class="ticker-col">{{ p.ticker }}</td>
-          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ p.fund_name }}</td>
-          <td class="num-cell negative">{{ p.return_1m_fmt }}</td>
+          <td style="word-wrap:break-word; white-space:normal; min-width:180px;">{{ p.fund_name }}</td>
+          <td class="num-cell negative" style="text-align:center;">{{ p.return_1m_fmt }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -175,12 +175,12 @@
   <thead>
     <tr>
       <th class="sortable" onclick="sortTable('suiteTable', 0)">Suite</th>
-      <th class="sortable" onclick="sortTable('suiteTable', 1)">AUM</th>
-      <th class="sortable" onclick="sortTable('suiteTable', 2)">1W Flow</th>
-      <th class="sortable" onclick="sortTable('suiteTable', 3)">1M Flow</th>
-      <th class="sortable" onclick="sortTable('suiteTable', 4)">Mkt Share</th>
-      <th class="sortable" onclick="sortTable('suiteTable', 5)"># Funds</th>
-      <th>Top Mover</th>
+      <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 1)">AUM</th>
+      <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 2)">1W Flow</th>
+      <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 3)">1M Flow</th>
+      <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 4)">Mkt Share</th>
+      <th class="sortable" style="text-align:center;" onclick="sortTable('suiteTable', 5)"># Funds</th>
+      <th style="text-align:center;">Top Mover</th>
     </tr>
   </thead>
   <tbody>
@@ -192,17 +192,17 @@
           {{ suite.rex_name if suite.rex_name else suite.short_name }}
         </span>
       </td>
-      <td class="num-cell" data-sort="{{ suite.kpis.total_aum|default(0) }}">
+      <td class="num-cell" style="text-align:center;" data-sort="{{ suite.kpis.total_aum|default(0) }}">
         {{ suite.kpis.aum_fmt }}
         {% if suite.aum_mom_pct is defined and suite.aum_mom_pct != 0 %}
         <div style="font-size:0.65rem;" class="{{ 'positive' if suite.aum_mom_pct >= 0 else 'negative' }}">{{ '%+.1f'|format(suite.aum_mom_pct) }}%</div>
         {% endif %}
       </td>
-      <td class="num-cell {{ 'positive' if suite.kpis.flow_1w > 0 else 'negative' if suite.kpis.flow_1w < 0 else '' }}" data-sort="{{ suite.kpis.flow_1w|default(0) }}">{{ suite.kpis.flow_1w_fmt }}</td>
-      <td class="num-cell {{ 'positive' if suite.kpis.flow_1m > 0 else 'negative' if suite.kpis.flow_1m < 0 else '' }}" data-sort="{{ suite.kpis.flow_1m|default(0) }}">{{ suite.kpis.flow_1m_fmt }}</td>
-      <td class="num-cell" data-sort="{{ suite.market_share|default(0) }}">{{ suite.market_share }}%</td>
-      <td class="num-cell" data-sort="{{ suite.kpis.num_products|default(0) }}">{{ suite.kpis.num_products }}</td>
-      <td class="movers-cell">{% for m in suite.top_movers[:1] %}<span class="{{ 'positive' if m.flow_raw > 0 else 'negative' if m.flow_raw < 0 else '' }}">{{ m.ticker }} {{ m.flow }}</span>{% endfor %}</td>
+      <td class="num-cell {{ 'positive' if suite.kpis.flow_1w > 0 else 'negative' if suite.kpis.flow_1w < 0 else '' }}" style="text-align:center;" data-sort="{{ suite.kpis.flow_1w|default(0) }}">{{ suite.kpis.flow_1w_fmt }}</td>
+      <td class="num-cell {{ 'positive' if suite.kpis.flow_1m > 0 else 'negative' if suite.kpis.flow_1m < 0 else '' }}" style="text-align:center;" data-sort="{{ suite.kpis.flow_1m|default(0) }}">{{ suite.kpis.flow_1m_fmt }}</td>
+      <td class="num-cell" style="text-align:center;" data-sort="{{ suite.market_share|default(0) }}">{{ suite.market_share }}%</td>
+      <td class="num-cell" style="text-align:center;" data-sort="{{ suite.kpis.num_products|default(0) }}">{{ suite.kpis.num_products }}</td>
+      <td class="movers-cell" style="text-align:center;">{% for m in suite.top_movers[:1] %}<span class="{{ 'positive' if m.flow_raw > 0 else 'negative' if m.flow_raw < 0 else '' }}">{{ m.ticker }} {{ m.flow }}</span>{% endfor %}</td>
     </tr>
     {# Collapsible product rows for this suite #}
     <tr id="suite{{ loop.index }}" style="display:none;">
@@ -212,9 +212,9 @@
             <tr style="background:var(--surface-2, #f1f5f9);">
               <th style="padding:4px 8px;">Ticker</th>
               <th style="padding:4px 8px;">Fund Name</th>
-              <th style="padding:4px 8px;">AUM</th>
-              <th style="padding:4px 8px;">1W Flow</th>
-              <th style="padding:4px 8px;">Expense Ratio</th>
+              <th style="padding:4px 8px; text-align:center;">AUM</th>
+              <th style="padding:4px 8px; text-align:center;">1W Flow</th>
+              <th style="padding:4px 8px; text-align:center;">Expense Ratio</th>
             </tr>
           </thead>
           <tbody>
@@ -222,9 +222,9 @@
             <tr>
               <td class="ticker-col" style="padding:3px 8px;">{{ p.ticker }}</td>
               <td class="name-cell" style="padding:3px 8px; max-width:220px;" title="{{ p.fund_name }}">{{ p.fund_name|truncate(35, true) }}</td>
-              <td class="num-cell" style="padding:3px 8px;">{{ p.aum_fmt }}</td>
-              <td class="num-cell" style="padding:3px 8px;">{{ p.flow_1w_fmt }}</td>
-              <td class="num-cell" style="padding:3px 8px;">{{ p.expense_ratio_fmt or '-' }}</td>
+              <td class="num-cell" style="padding:3px 8px; text-align:center;">{{ p.aum_fmt }}</td>
+              <td class="num-cell" style="padding:3px 8px; text-align:center;">{{ p.flow_1w_fmt }}</td>
+              <td class="num-cell" style="padding:3px 8px; text-align:center;">{{ p.expense_ratio_fmt or '-' }}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -275,7 +275,8 @@ function switchPerfMetric(metric) {
 
   var labels = {
     'return_1m': '1M Return', 'return_1w': '1W Return',
-    'flow_1w': '1W Flow', 'flow_1m': '1M Flow', 'flow_3m': '3M Flow', 'flow_ytd': 'YTD Flow',
+    'flow_1w': '1W Flow', 'flow_1m': '1M Flow', 'flow_3m': '3M Flow',
+    'flow_6m': '6M Flow', 'flow_ytd': 'YTD Flow', 'flow_1y': '1Y Flow',
     'yield': 'Annualized Yield'
   };
   var label = labels[metric] || metric;
@@ -292,8 +293,8 @@ function switchPerfMetric(metric) {
     items.forEach(function(p) {
       var cls = positive ? 'positive' : 'negative';
       html += '<tr><td class="ticker-col">' + (p.ticker||'') + '</td>';
-      html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (p.fund_name||'') + '</td>';
-      html += '<td class="num-cell ' + cls + '">' + (p.value_fmt||'') + '</td></tr>';
+      html += '<td style="word-wrap:break-word;white-space:normal;min-width:180px;">' + (p.fund_name||'') + '</td>';
+      html += '<td class="num-cell ' + cls + '" style="text-align:center;">' + (p.value_fmt||'') + '</td></tr>';
     });
     tbody.innerHTML = html;
   }
@@ -424,11 +425,14 @@ document.addEventListener('DOMContentLoaded', function() {
       },
       options: {
         indexAxis: 'y',
+        layout: { padding: { left: 10, right: 100 } },
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: { label: function(ctx) {
             var v = ctx.parsed.x;
-            return (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(1) + 'M';
+            var abs = Math.abs(v);
+            var s = abs >= 1000 ? (abs/1000).toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'B' : abs.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'M';
+            return (v >= 0 ? '+' : '-') + '$' + s;
           }}},
           datalabels: {
             anchor: 'end',
@@ -437,12 +441,15 @@ document.addEventListener('DOMContentLoaded', function() {
             font: { size: 11, weight: '600' },
             formatter: function(value) {
               if (value === 0) return '';
-              return (value >= 0 ? '+' : '') + '$' + Math.abs(value).toFixed(1) + 'M';
-            }
+              var abs = Math.abs(value);
+              var s = abs >= 1000 ? (abs/1000).toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'B' : abs.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'M';
+              return (value >= 0 ? '+' : '-') + '$' + s;
+            },
+            clip: false
           }
         },
         scales: {
-          x: { display: false },
+          x: { display: false, grace: '20%' },
           y: { ticks: { font: { size: 11, weight: '600' }, color: RexTheme.isDark() ? '#94a3b8' : '#374151' }, grid: { display: false } }
         }
       }
