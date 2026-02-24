@@ -427,8 +427,8 @@
 /* Treemap */
 .treemap-container {
   width: 100%;
-  height: 500px;
-  margin-top: var(--sp-4);
+  height: 550px;
+  position: relative;
 }
 
 /* Underlier deep-dive */

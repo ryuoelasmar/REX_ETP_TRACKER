@@ -97,22 +97,11 @@
 
 {# Treemap Section #}
 {% if treemap is defined and treemap and treemap.issuers %}
-<div class="chart-box" style="margin-bottom:24px;">
+<div class="chart-box" style="margin-bottom:24px; padding:16px;">
   <h3>Market Landscape — {{ category or 'All Categories' }}</h3>
-  <div class="treemap-container">
+  <div class="treemap-container" style="height:550px;">
     <canvas id="categoryTreemap"></canvas>
   </div>
-  {% if treemap.issuers %}
-  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; font-size:0.72rem;">
-    {% set treemap_colors = ['#1E40AF','#DC2626','#059669','#D97706','#7C3AED','#DB2777','#0891B2','#65A30D','#6366F1','#F43F5E','#0D9488','#A855F7'] %}
-    {% for iss in treemap.issuers %}
-    <span style="display:inline-flex; align-items:center; gap:4px;">
-      <span style="width:10px; height:10px; border-radius:2px; background:{{ treemap_colors[loop.index0 % treemap_colors|length] }};"></span>
-      {{ iss.issuer }} ({{ iss.pct }}%)
-    </span>
-    {% endfor %}
-  </div>
-  {% endif %}
 </div>
 {% endif %}
 
@@ -204,15 +193,36 @@
 
     {# Pagination #}
     {% if summary.total_pages is defined and summary.total_pages > 1 %}
-    <div class="pagination-controls" style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:16px; font-size:0.85rem;">
-      {% set base_url = '/market/category?cat=' ~ (category|default('All')|urlencode) ~ '&fund_structure=' ~ (fund_structure|default('ETF')) %}
-      {% if page > 1 %}
-      <a href="{{ base_url }}&page={{ page - 1 }}&per_page={{ per_page }}" class="btn btn-sm" style="padding:4px 10px;">&laquo; Prev</a>
-      {% endif %}
-      <span style="color:var(--text-secondary);">Page {{ page }} of {{ summary.total_pages }} ({{ summary.total_funds }} products)</span>
-      {% if page < summary.total_pages %}
-      <a href="{{ base_url }}&page={{ page + 1 }}&per_page={{ per_page }}" class="btn btn-sm" style="padding:4px 10px;">Next &raquo;</a>
-      {% endif %}
+    <div class="pagination-bar">
+      <span class="pagination-info">{{ summary.total_funds }} products &middot; page {{ page }} of {{ summary.total_pages }}</span>
+      <div class="pagination-controls">
+        {% if page > 1 %}
+        <a href="?{{ base_qs }}&page={{ page - 1 }}" class="btn btn-sm">Prev</a>
+        {% endif %}
+        {% if summary.total_pages <= 7 %}
+          {% for p in range(1, summary.total_pages + 1) %}
+          <a href="?{{ base_qs }}&page={{ p }}" class="btn btn-sm {{ 'btn-primary' if p == page else '' }}">{{ p }}</a>
+          {% endfor %}
+        {% else %}
+          {% for p in range(1, summary.total_pages + 1) %}
+            {% if p == 1 or p == summary.total_pages or (p >= page - 2 and p <= page + 2) %}
+              {% if prev_shown is defined and p > prev_shown + 1 %}
+              <span style="color:var(--text-muted); padding:0 4px;">&hellip;</span>
+              {% endif %}
+              <a href="?{{ base_qs }}&page={{ p }}" class="btn btn-sm {{ 'btn-primary' if p == page else '' }}">{{ p }}</a>
+              {% set prev_shown = p %}
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+        {% if page < summary.total_pages %}
+        <a href="?{{ base_qs }}&page={{ page + 1 }}" class="btn btn-sm">Next</a>
+        {% endif %}
+      </div>
+      <select class="select-sm" onchange="location='?{{ base_qs }}&page=1&per_page='+this.value">
+        {% for n in [25, 50, 100, 200] %}
+        <option value="{{ n }}"{{ ' selected' if n == per_page else '' }}>{{ n }}/page</option>
+        {% endfor %}
+      </select>
     </div>
     {% endif %}
   </div>

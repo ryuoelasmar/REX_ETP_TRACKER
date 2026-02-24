@@ -104,7 +104,7 @@
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
     <h3 style="margin:0;">Suite Flows</h3>
     <div style="display:flex; gap:4px;">
-      {% for period in ['1w','1m','3m','ytd'] %}
+      {% for period in ['1w','1m','3m','6m','ytd','1y'] %}
       <button class="pill rex-flow-btn {% if loop.first %}active{% endif %}"
               data-period="{{ period }}" onclick="showRexFlowPeriod('{{ period }}')">
         {{ period.upper() }}
@@ -127,7 +127,9 @@
     <option value="flow_1w">1W Flow</option>
     <option value="flow_1m">1M Flow</option>
     <option value="flow_3m">3M Flow</option>
+    <option value="flow_6m">6M Flow</option>
     <option value="flow_ytd">YTD Flow</option>
+    <option value="flow_1y">1Y Flow</option>
     <option value="yield">Annualized Yield</option>
   </select>
 </div>

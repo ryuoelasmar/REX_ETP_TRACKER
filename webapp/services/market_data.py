@@ -88,6 +88,7 @@ def _load_fresh() -> dict[str, Any]:
         "t_w4.fund_flow_1day", "t_w4.fund_flow_1week",
         "t_w4.fund_flow_1month", "t_w4.fund_flow_3month",
         "t_w4.fund_flow_6month", "t_w4.fund_flow_ytd",
+        "t_w4.fund_flow_1year", "t_w4.fund_flow_3year",
         "t_w3.total_return_1week", "t_w3.total_return_1month",
         "t_w3.annualized_yield",
         "t_w2.expense_ratio",
@@ -316,7 +317,9 @@ def get_rex_summary(fund_structure: str | None = None, category: str | None = No
         "flow_1w": ("t_w4.fund_flow_1week", None, False),
         "flow_1m": ("t_w4.fund_flow_1month", None, False),
         "flow_3m": ("t_w4.fund_flow_3month", None, False),
+        "flow_6m": ("t_w4.fund_flow_6month", None, False),
         "flow_ytd": ("t_w4.fund_flow_ytd", None, False),
+        "flow_1y": ("t_w4.fund_flow_1year", None, False),
         "yield": ("t_w3.annualized_yield", "{:.2f}%", True),
     }
     for mkey, (mcol, mfmt, is_pct) in _metric_defs.items():
@@ -346,7 +349,7 @@ def get_rex_summary(fund_structure: str | None = None, category: str | None = No
         perf_metrics[mkey] = {"best5": b5, "worst5": w5}
 
     # --- Flow data arrays for bar chart (per suite) ---
-    flow_chart_data = {"suites": [], "flow_1w": [], "flow_1m": [], "flow_3m": [], "flow_ytd": []}
+    flow_chart_data = {"suites": [], "flow_1w": [], "flow_1m": [], "flow_3m": [], "flow_6m": [], "flow_ytd": [], "flow_1y": []}
 
     suites = []
     for suite_name in _SUITE_ORDER:
@@ -439,12 +442,16 @@ def get_rex_summary(fund_structure: str | None = None, category: str | None = No
         flow_1w = float(rex_suite["t_w4.fund_flow_1week"].sum()) if "t_w4.fund_flow_1week" in rex_suite.columns else 0.0
         flow_1m = float(rex_suite["t_w4.fund_flow_1month"].sum()) if "t_w4.fund_flow_1month" in rex_suite.columns else 0.0
         flow_3m = float(rex_suite["t_w4.fund_flow_3month"].sum()) if "t_w4.fund_flow_3month" in rex_suite.columns else 0.0
+        flow_6m = float(rex_suite["t_w4.fund_flow_6month"].sum()) if "t_w4.fund_flow_6month" in rex_suite.columns else 0.0
         flow_ytd = float(rex_suite["t_w4.fund_flow_ytd"].sum()) if "t_w4.fund_flow_ytd" in rex_suite.columns else 0.0
+        flow_1y = float(rex_suite["t_w4.fund_flow_1year"].sum()) if "t_w4.fund_flow_1year" in rex_suite.columns else 0.0
         flow_chart_data["suites"].append(display_name)
         flow_chart_data["flow_1w"].append(round(flow_1w, 2))
         flow_chart_data["flow_1m"].append(round(flow_1m, 2))
         flow_chart_data["flow_3m"].append(round(flow_3m, 2))
+        flow_chart_data["flow_6m"].append(round(flow_6m, 2))
         flow_chart_data["flow_ytd"].append(round(flow_ytd, 2))
+        flow_chart_data["flow_1y"].append(round(flow_1y, 2))
 
         suites.append({
             "name": suite_name,

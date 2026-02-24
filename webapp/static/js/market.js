@@ -253,13 +253,17 @@ var MarketCharts = (function() {
     var ctx = document.getElementById(canvasId);
     if (!ctx) return null;
 
-    var groupColors = {};
-    var palette = ['#1E40AF','#DC2626','#059669','#D97706','#7C3AED','#DB2777','#0891B2','#65A30D'];
-    var groups = [];
+    // Build color map by issuer (sorted by total AUM for consistent ordering)
+    var issuerAum = {};
     products.forEach(function(p) {
-      if (groups.indexOf(p.group) === -1) groups.push(p.group);
+      issuerAum[p.group] = (issuerAum[p.group] || 0) + p.value;
     });
-    groups.forEach(function(g, i) { groupColors[g] = palette[i % palette.length]; });
+    var sortedIssuers = Object.keys(issuerAum).sort(function(a, b) {
+      return issuerAum[b] - issuerAum[a];
+    });
+    var palette = ['#1E40AF','#DC2626','#059669','#D97706','#7C3AED','#DB2777','#0891B2','#65A30D','#6366F1','#F43F5E','#0D9488','#A855F7'];
+    var groupColors = {};
+    sortedIssuers.forEach(function(g, i) { groupColors[g] = palette[i % palette.length]; });
 
     var chart = new Chart(ctx, {
       type: 'treemap',
@@ -268,30 +272,70 @@ var MarketCharts = (function() {
           label: 'AUM by Product',
           tree: products,
           key: 'value',
-          groups: ['group'],
+          groups: ['group', 'label'],
+          borderColor: 'rgba(255,255,255,0.7)',
+          borderWidth: 1,
+          spacing: 0.5,
           backgroundColor: function(c) {
             if (!c.raw || !c.raw.g) return '#6B7280';
             var base = groupColors[c.raw.g] || '#6B7280';
-            return c.raw._data && c.raw._data.is_rex ? base : base + '99';
+            // Leaf nodes (individual products)
+            if (c.raw._data) {
+              return c.raw._data.is_rex ? base : base + 'DD';
+            }
+            // Group-level node (issuer header)
+            return base;
+          },
+          captions: {
+            display: true,
+            color: '#ffffff',
+            font: { size: 13, weight: 'bold' },
+            align: 'left',
+            padding: 4,
+            formatter: function(c) {
+              return c.raw && c.raw.g ? c.raw.g : '';
+            }
           },
           labels: {
             display: true,
-            formatter: function(c) { return c.raw._data ? c.raw._data.label : ''; },
+            formatter: function(c) {
+              if (!c.raw || !c.raw._data) return '';
+              var ticker = c.raw._data.label || '';
+              var aum = c.raw._data.aum_fmt || '';
+              return ticker && aum ? [ticker, aum] : ticker;
+            },
             color: '#ffffff',
-            font: { size: 11 }
+            font: { size: 10 },
+            overflow: 'hidden',
+            padding: 3
           }
         }]
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           datalabels: { display: false },
           tooltip: {
             callbacks: {
-              title: function(items) { return items[0].raw._data ? items[0].raw._data.label : ''; },
+              title: function(items) {
+                var raw = items[0].raw;
+                if (raw._data) return raw._data.fund_name || raw._data.label || '';
+                return raw.g || '';
+              },
               label: function(item) {
-                var d = item.raw._data;
-                if (!d) return '';
-                return [d.fund_name || '', 'AUM: ' + (d.aum_fmt || ''), 'Issuer: ' + (d.issuer || ''), d.is_rex ? 'REX Product' : ''];
+                var raw = item.raw;
+                if (raw._data) {
+                  var lines = [];
+                  if (raw._data.ticker) lines.push('Ticker: ' + raw._data.ticker);
+                  if (raw._data.aum_fmt) lines.push('AUM: ' + raw._data.aum_fmt);
+                  if (raw._data.issuer) lines.push('Issuer: ' + raw._data.issuer);
+                  if (raw._data.is_rex) lines.push('REX Product');
+                  return lines;
+                }
+                // Group-level: show issuer name and total
+                var total = item.raw.v || 0;
+                return 'Total AUM: $' + (total / 1e3).toFixed(1) + 'B';
               }
             }
           },

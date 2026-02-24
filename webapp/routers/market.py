@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import urllib.parse
 from typing import Any, Optional
 
 from fastapi import APIRouter, Query, Request
@@ -141,6 +142,14 @@ def category_view(
             "total_values": ts_cat["values"],
             "rex_values": ts_rex["values"],
         }
+        # Build base query string for pagination (preserves all filters except page)
+        qs_params = {"cat": cat, "fund_structure": fund_structure}
+        if per_page != 50:
+            qs_params["per_page"] = per_page
+        for key, val in filter_dict.items():
+            qs_params[key] = val
+        base_qs = urllib.parse.urlencode(qs_params)
+
         return templates.TemplateResponse("market/category.html", {
             "request": request,
             "available": True,
@@ -155,6 +164,7 @@ def category_view(
             "treemap": treemap_data,
             "page": page,
             "per_page": per_page,
+            "base_qs": base_qs,
             "data_as_of": svc.get_data_as_of(),
         })
     except Exception as e:
