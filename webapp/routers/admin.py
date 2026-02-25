@@ -254,6 +254,40 @@ def send_digest(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(f"/admin/?digest=error&msg={quote(str(e)[:100])}", status_code=303)
 
 
+@router.post("/digest/send-weekly")
+def send_weekly(request: Request, db: Session = Depends(get_db)):
+    """Send the weekly intelligence brief to all recipients."""
+    if not _is_admin(request):
+        return RedirectResponse("/admin/", status_code=302)
+
+    try:
+        from etp_tracker.weekly_digest import send_weekly_digest
+        dashboard_url = str(request.base_url).rstrip("/")
+        sent = send_weekly_digest(db, dashboard_url=dashboard_url)
+
+        if sent:
+            return RedirectResponse("/admin/?digest=weekly_sent", status_code=303)
+        return RedirectResponse("/admin/?digest=weekly_fail", status_code=303)
+
+    except Exception as e:
+        from urllib.parse import quote
+        log.error("Weekly digest send failed: %s", e)
+        return RedirectResponse(f"/admin/?digest=error&msg={quote(str(e)[:100])}", status_code=303)
+
+
+@router.get("/digest/preview-weekly")
+def preview_weekly(request: Request, db: Session = Depends(get_db)):
+    """Preview weekly digest HTML without sending."""
+    if not _is_admin(request):
+        return RedirectResponse("/admin/", status_code=302)
+
+    from etp_tracker.weekly_digest import build_weekly_digest_html
+    dashboard_url = str(request.base_url).rstrip("/")
+    html = build_weekly_digest_html(db, dashboard_url=dashboard_url)
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html)
+
+
 # --- Subscriber Management ---
 
 @router.post("/subscribers/approve")

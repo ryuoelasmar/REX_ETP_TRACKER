@@ -33,7 +33,15 @@
 {% endif %}
 {% if request.query_params.get('digest') == 'sent' %}
 <div style="background:var(--green-bg); border-left:4px solid var(--green); padding:12px 16px; border-radius:0 8px 8px 0; margin-bottom:16px;">
-  <strong style="color:var(--green);">Digest sent successfully.</strong> Check your inbox.
+  <strong style="color:var(--green);">Daily digest sent successfully.</strong> Check your inbox.
+</div>
+{% elif request.query_params.get('digest') == 'weekly_sent' %}
+<div style="background:var(--green-bg); border-left:4px solid var(--green); padding:12px 16px; border-radius:0 8px 8px 0; margin-bottom:16px;">
+  <strong style="color:var(--green);">Weekly intelligence brief sent successfully.</strong> Check your inbox.
+</div>
+{% elif request.query_params.get('digest') == 'weekly_fail' %}
+<div style="background:var(--red-bg); border-left:4px solid var(--red); padding:12px 16px; border-radius:0 8px 8px 0; margin-bottom:16px;">
+  <strong style="color:var(--red);">Failed to send weekly brief.</strong> Check email configuration.
 </div>
 {% elif request.query_params.get('digest') == 'fail' %}
 <div style="background:var(--red-bg); border-left:4px solid var(--red); padding:12px 16px; border-radius:0 8px 8px 0; margin-bottom:16px;">
@@ -133,12 +141,20 @@
   <div style="border:1px solid var(--border); border-radius:8px; padding:20px; background:var(--light);">
     <h3 style="margin:0 0 12px; font-size:16px;">Email Digest</h3>
     <p style="font-size:13px; color:var(--muted); margin-bottom:12px;">
-      Send the daily digest email to all approved recipients using current database data.
+      Send digest emails to all approved recipients using current database data.
     </p>
-    <form method="post" action="/admin/digest/send"
-          onsubmit="return confirm('Send digest email to all recipients now?');">
-      <button type="submit" class="btn btn-primary">Send Digest Now</button>
-    </form>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <form method="post" action="/admin/digest/send"
+            onsubmit="return confirm('Send DAILY digest email now?');">
+        <button type="submit" class="btn btn-primary">Send Daily Digest</button>
+      </form>
+      <form method="post" action="/admin/digest/send-weekly"
+            onsubmit="return confirm('Send WEEKLY intelligence brief now?');">
+        <button type="submit" class="btn btn-primary" style="background:#0984e3;">Send Weekly Brief</button>
+      </form>
+      <a href="/admin/digest/preview-weekly" target="_blank"
+         class="btn" style="background:var(--border); color:var(--fg); text-decoration:none; display:inline-block; text-align:center;">Preview Weekly</a>
+    </div>
   </div>
 
   <!-- Digest Subscribers -->
