@@ -1,28 +1,22 @@
 """
-REX ETF Weekly Report - Executive Email Digest v3
+REX ETF Weekly Report - Executive Email Digest v4
 
 Email-client-compatible HTML digest (inline styles, table layout, no JS).
 Combines Bloomberg market data (ETF-only) and SEC filing activity into a
 comprehensive executive-ready weekly email for REX Financial team members.
 
 Sections:
-  PART 1 - Overview
-    1. Header
-    2. Filing Activity (top-of-email)
+  1. Header
+  2. Filing Activity
+  3. REX Scorecard (4 KPIs with growth sub-labels)
+  4. AUM by Suite (treemap-style grid)
+  5. 1M Flows by Suite (diverging bar chart)
+  6. Winners, Losers & Yielders (vertical, with 1W Flow)
+  7. Market Landscape (5 categories, 4 KPIs + AUM bar + top 5 issuers each)
+  8. Dashboard CTA
+  9. Footer
 
-  PART 2 - REX Products
-    3. REX Scorecard (4 KPI cards with growth sub-labels)
-    4. AUM by Suite (stacked bar, Outlook-safe)
-    5. 1M Flows by Suite (horizontal bar chart)
-    6. Winners, Losers & Yielders (combined section)
-
-  PART 3 - Category Landscape
-    7. Section header
-    8. Per-category cards (5 categories, 4 KPIs + top 5 issuers each)
-
-  PART 4 - Close
-    9. Dashboard CTA
-    10. Footer
+Supports format="full" (default). format="flash" reserved for future 1-screen summary.
 """
 from __future__ import annotations
 
@@ -53,6 +47,15 @@ _SUITE_COLORS = {
     "Crypto": "#8e44ad",
     "Thematic": "#27ae60",
     "Defined Outcome": "#00b894",
+}
+
+_SUITE_ABBREVS = {
+    "T-REX": "T-REX",
+    "Growth & Income": "G&I",
+    "Premium Income": "Prem",
+    "Crypto": "Crypto",
+    "Thematic": "Thm",
+    "Defined Outcome": "DO",
 }
 
 # Income categories for yield filtering
@@ -348,8 +351,8 @@ def _render_scorecard_unavailable() -> str:
 </td></tr>"""
 
 
-def _render_aum_stacked_bar(suites: list[dict]) -> str:
-    """AUM by Suite as a single stacked horizontal bar + legend (Outlook-safe)."""
+def _render_aum_stacked_bar(suites: list[dict], rex_df: pd.DataFrame = None) -> str:
+    """AUM by Suite as a treemap-style grid (thick cells with suite info inside)."""
     filtered = _filter_suites(suites)
     if not filtered:
         return ""
@@ -358,31 +361,58 @@ def _render_aum_stacked_bar(suites: list[dict]) -> str:
     if total <= 0:
         return ""
 
-    # Build stacked bar segments
+    # Count new products per suite from rex_df inception dates
+    new_by_suite: dict[str, int] = {}
+    if rex_df is not None and not rex_df.empty and "inception_date" in rex_df.columns:
+        cutoff_30d = pd.Timestamp.now() - pd.Timedelta(days=30)
+        inception = pd.to_datetime(rex_df["inception_date"], errors="coerce")
+        rex_df_copy = rex_df.copy()
+        rex_df_copy["_is_new"] = inception >= cutoff_30d
+        suite_col = next((c for c in rex_df_copy.columns if c.lower() in ("suite", "rex_suite", "suite_display")), None)
+        if suite_col:
+            for suite_name, grp in rex_df_copy.groupby(suite_col):
+                n = int(grp["_is_new"].sum())
+                if n > 0:
+                    new_by_suite[str(suite_name)] = n
+
+    # Build treemap cells
     bar_cells = []
-    legend_rows = []
     for s in sorted_suites:
         name = s.get("rex_name", s.get("name", ""))
         aum = s.get("kpis", {}).get("total_aum", 0)
         pct = (aum / total * 100) if total > 0 else 0
         color = _SUITE_COLORS.get(name, _BLUE)
+        num_products = s.get("kpis", {}).get("num_products", s.get("kpis", {}).get("count", 0))
+        new_count = new_by_suite.get(name, 0)
 
         if pct < 0.5:
-            continue  # skip tiny slices in the bar
+            continue
+
+        abbrev = _SUITE_ABBREVS.get(name, name[:4])
+        new_label = f" (+{new_count} new)" if new_count > 0 else ""
+
+        if pct >= 8:
+            # Large cell: suite name + AUM + products
+            cell_content = (
+                f'<div style="font-size:11px;font-weight:700;line-height:1.2;">{_esc(name)}</div>'
+                f'<div style="font-size:10px;opacity:0.9;">{_fmt_currency_safe(aum)}</div>'
+                f'<div style="font-size:9px;opacity:0.8;">{num_products} products{new_label}</div>'
+            )
+        elif pct >= 5:
+            # Medium cell: abbreviation + AUM
+            cell_content = (
+                f'<div style="font-size:10px;font-weight:700;line-height:1.2;">{_esc(abbrev)}</div>'
+                f'<div style="font-size:9px;opacity:0.9;">{_fmt_currency_safe(aum)}</div>'
+            )
+        else:
+            # Small cell: just colored block
+            cell_content = ""
 
         bar_cells.append(
-            f'<td width="{pct:.1f}%" style="background:{color};"></td>'
-        )
-
-        legend_rows.append(
-            f'<tr>'
-            f'<td style="padding:4px 6px;width:14px;">'
-            f'<div style="width:12px;height:12px;background:{color};border-radius:2px;"></div>'
-            f'</td>'
-            f'<td style="padding:4px 6px;font-size:12px;font-weight:600;">{_esc(name)}</td>'
-            f'<td style="padding:4px 6px;font-size:12px;text-align:right;">{_fmt_currency_safe(aum)}</td>'
-            f'<td style="padding:4px 6px;font-size:11px;text-align:right;color:{_GRAY};">{pct:.1f}%</td>'
-            f'</tr>'
+            f'<td width="{pct:.1f}%" style="background:{color};color:{_WHITE};'
+            f'padding:4px 5px;vertical-align:middle;overflow:hidden;" title="{_esc(name)}: '
+            f'{_fmt_currency_safe(aum)} ({pct:.1f}%)">'
+            f'{cell_content}</td>'
         )
 
     if not bar_cells:
@@ -394,15 +424,11 @@ def _render_aum_stacked_bar(suites: list[dict]) -> str:
   <div style="font-size:12px;color:{_GRAY};margin-bottom:10px;">
     Total: {_fmt_currency_safe(total)}
   </div>
-  <table width="100%" cellpadding="0" cellspacing="0"
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"
          style="border-radius:6px;overflow:hidden;">
-    <tr style="height:24px;">
+    <tr style="height:70px;">
       {''.join(bar_cells)}
     </tr>
-  </table>
-  <table width="100%" cellpadding="0" cellspacing="0" border="0"
-         style="margin-top:10px;">
-    {''.join(legend_rows)}
   </table>
 </td></tr>"""
 
@@ -448,6 +474,79 @@ def _render_bar_chart(title: str, items: list[tuple[str, float]], subtitle: str 
 </td></tr>"""
 
 
+def _render_diverging_bar_chart(title: str, items: list[tuple[str, float]], subtitle: str = "") -> str:
+    """Diverging horizontal bar chart: bars grow left/right from a center line."""
+    if not items:
+        return ""
+
+    max_abs = max(abs(v) for _, v in items) if items else 1
+    if max_abs == 0:
+        max_abs = 1
+
+    sub_html = (
+        f'<div style="font-size:12px;color:{_GRAY};margin-bottom:8px;">{_esc(subtitle)}</div>'
+        if subtitle else ""
+    )
+
+    rows = []
+    for label, val in items:
+        bar_pct = abs(val) / max_abs * 100
+        val_fmt = _fmt_flow_safe(val)
+        val_color = _flow_color(val)
+        bar_color = _BLUE if val >= 0 else _RED
+
+        if val < 0:
+            # Negative: bar in left half, right-aligned (grows leftward from center)
+            left_cell = (
+                f'<td style="padding:0;">'
+                f'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+                f'<tr><td width="{100 - bar_pct:.1f}%"></td>'
+                f'<td width="{bar_pct:.1f}%" style="background:{bar_color};'
+                f'height:16px;border-radius:3px 0 0 3px;"></td></tr>'
+                f'</table></td>'
+            )
+            right_cell = '<td style="padding:0;"></td>'
+        elif val > 0:
+            # Positive: bar in right half, left-aligned (grows rightward from center)
+            left_cell = '<td style="padding:0;"></td>'
+            right_cell = (
+                f'<td style="padding:0;">'
+                f'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+                f'<tr><td width="{bar_pct:.1f}%" style="background:{bar_color};'
+                f'height:16px;border-radius:0 3px 3px 0;"></td>'
+                f'<td width="{100 - bar_pct:.1f}%"></td></tr>'
+                f'</table></td>'
+            )
+        else:
+            left_cell = '<td style="padding:0;"></td>'
+            right_cell = '<td style="padding:0;"></td>'
+
+        rows.append(
+            f'<tr>'
+            f'<td style="padding:4px 8px;font-size:12px;font-weight:600;width:110px;'
+            f'white-space:nowrap;">{_esc(label)}</td>'
+            f'<td width="40%" style="padding:4px 0;">'
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+            f'<tr>{left_cell}</tr></table></td>'
+            f'<td width="2px" style="background:{_BORDER};"></td>'
+            f'<td width="40%" style="padding:4px 0;">'
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+            f'<tr>{right_cell}</tr></table></td>'
+            f'<td style="padding:4px 8px;font-size:12px;text-align:right;width:80px;'
+            f'font-weight:600;color:{val_color};">{val_fmt}</td>'
+            f'</tr>'
+        )
+
+    return f"""
+<tr><td style="padding:15px 30px;">
+  <div style="{_SECTION_TITLE}">{_esc(title)}</div>
+  {sub_html}
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    {''.join(rows)}
+  </table>
+</td></tr>"""
+
+
 def _render_flow_chart(suites: list[dict], flow_chart: dict) -> str:
     """1M Flows by suite as a horizontal bar chart."""
     suite_names = flow_chart.get("suites", [])
@@ -461,16 +560,16 @@ def _render_flow_chart(suites: list[dict], flow_chart: dict) -> str:
             continue
         items.append((name, val))
 
-    # Sort by absolute flow descending
-    items.sort(key=lambda x: abs(x[1]), reverse=True)
+    # Sort by value descending (most positive at top)
+    items.sort(key=lambda x: x[1], reverse=True)
     total_flow = sum(v for _, v in items)
 
-    return _render_bar_chart("1M Net Flows by Suite", items,
-                             subtitle=f"Total: {_fmt_flow_safe(total_flow)}")
+    return _render_diverging_bar_chart("1M Net Flows by Suite", items,
+                                       subtitle=f"Total: {_fmt_flow_safe(total_flow)}")
 
 
 def _render_winners_losers_yielders(perf_metrics: dict, rex_df: pd.DataFrame) -> str:
-    """Winners, Losers & Yielders combined in one section."""
+    """Winners, Losers & Yielders stacked vertically with column headers and 1W Flow."""
     ret_data = perf_metrics.get("return_1w", {})
     winners = ret_data.get("best5", []) if ret_data else []
     losers = ret_data.get("worst5", []) if ret_data else []
@@ -490,63 +589,77 @@ def _render_winners_losers_yielders(perf_metrics: dict, rex_df: pd.DataFrame) ->
     if not winners and not losers and not yielders:
         return ""
 
-    def _table(title: str, items: list, title_color: str) -> str:
+    # Build 1W flow lookup from rex_df
+    flow_lookup: dict[str, float] = {}
+    if not rex_df.empty and "ticker_clean" in rex_df.columns and "t_w4.fund_flow_1week" in rex_df.columns:
+        for _, row in rex_df.iterrows():
+            ticker = str(row.get("ticker_clean", ""))
+            flow = float(row.get("t_w4.fund_flow_1week", 0) or 0)
+            if ticker:
+                flow_lookup[ticker] = flow
+
+    _col_header = (
+        f"padding:3px 6px;font-size:9px;color:{_GRAY};text-transform:uppercase;"
+        f"letter-spacing:0.5px;border-bottom:1px solid {_BORDER};"
+    )
+
+    def _section(title: str, items: list, title_color: str, metric_label: str = "1W Return") -> str:
+        if not items:
+            return ""
         header = (
             f'<div style="font-size:13px;font-weight:700;color:{title_color};'
-            f'margin-bottom:6px;">{_esc(title)}</div>'
+            f'margin-bottom:4px;">{_esc(title)}</div>'
+        )
+        col_headers = (
+            f'<tr>'
+            f'<td style="{_col_header}width:60px;">Ticker</td>'
+            f'<td style="{_col_header}">Fund Name</td>'
+            f'<td style="{_col_header}text-align:right;width:80px;">{_esc(metric_label)}</td>'
+            f'<td style="{_col_header}text-align:right;width:80px;">1W Flow</td>'
+            f'</tr>'
         )
         rows = []
         for item in items[:5]:
             ticker = _esc(item.get("ticker", ""))
             name = _esc(item.get("fund_name", ""))
-            if len(name) > 28:
-                name = name[:25] + "..."
+            if len(name) > 35:
+                name = name[:32] + "..."
             value = _esc(item.get("value_fmt", ""))
+            flow = flow_lookup.get(item.get("ticker", ""), 0)
+            flow_fmt = _fmt_flow_safe(flow) if flow != 0 else f'<span style="color:{_GRAY};">--</span>'
+            flow_clr = _flow_color(flow) if flow != 0 else _GRAY
             rows.append(
                 f'<tr>'
                 f'<td style="padding:3px 6px;font-size:11px;font-weight:600;'
-                f'border-bottom:1px solid {_BORDER};white-space:nowrap;">{ticker}</td>'
+                f'border-bottom:1px solid {_BORDER};white-space:nowrap;width:60px;">{ticker}</td>'
                 f'<td style="padding:3px 6px;font-size:10px;color:{_GRAY};'
                 f'border-bottom:1px solid {_BORDER};">{name}</td>'
                 f'<td style="padding:3px 6px;font-size:11px;text-align:right;font-weight:600;'
-                f'border-bottom:1px solid {_BORDER};color:{title_color};">{value}</td>'
+                f'border-bottom:1px solid {_BORDER};color:{title_color};width:80px;">{value}</td>'
+                f'<td style="padding:3px 6px;font-size:11px;text-align:right;font-weight:600;'
+                f'border-bottom:1px solid {_BORDER};color:{flow_clr};width:80px;">{flow_fmt}</td>'
                 f'</tr>'
             )
         return (
+            f'<div style="margin-bottom:14px;">'
             f'{header}'
             f'<table width="100%" cellpadding="0" cellspacing="0" border="0"'
             f' style="border-collapse:collapse;">'
+            f'{col_headers}'
             f'{"".join(rows)}'
             f'</table>'
-        )
-
-    # Winners & Losers side by side
-    wl_html = ""
-    if winners or losers:
-        left = _table("Winners (1W Return)", winners, _GREEN)
-        right = _table("Losers (1W Return)", losers, _RED)
-        wl_html = f"""
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr>
-      <td width="48%" valign="top">{left}</td>
-      <td width="4%"></td>
-      <td width="48%" valign="top">{right}</td>
-    </tr>
-  </table>"""
-
-    # Yielders full-width below
-    yielders_html = ""
-    if yielders:
-        yielders_html = (
-            f'<div style="margin-top:12px;">'
-            f'{_table("Top Yielders (Income Suites)", yielders, _GREEN)}'
             f'</div>'
         )
+
+    winners_html = _section("Winners (1W Return)", winners, _GREEN)
+    losers_html = _section("Losers (1W Return)", losers, _RED)
+    yielders_html = _section("Top Yielders (Income Suites)", yielders, _GREEN, metric_label="Yield")
 
     return f"""
 <tr><td style="padding:15px 30px;">
   <div style="{_SECTION_TITLE}">Winners, Losers & Yielders</div>
-  {wl_html}
+  {winners_html}
+  {losers_html}
   {yielders_html}
 </td></tr>"""
 
@@ -662,6 +775,39 @@ def _render_category_card(
     </tr>
   </table>"""
 
+    # AUM comparison bar: Category vs REX
+    aum_bar_html = ""
+    rex_aum = cat_data.get("rex_kpis", {}).get("total_aum", 0)
+    if cat_aum > 0:
+        rex_pct = (rex_aum / cat_aum * 100) if rex_aum > 0 else 0
+        if rex_aum > 0:
+            aum_bar_html = f"""
+  <div style="margin:8px 0;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:4px;">
+      <tr>
+        <td style="font-size:10px;color:{_GRAY};">Category: {_fmt_currency_safe(cat_aum)}</td>
+        <td style="font-size:10px;color:{_BLUE};text-align:right;font-weight:600;">
+          REX: {_fmt_currency_safe(rex_aum)} ({rex_pct:.1f}%)</td>
+      </tr>
+    </table>
+    <div style="background:{_LIGHT};border-radius:4px;overflow:hidden;height:8px;">
+      <div style="background:{_BLUE};height:8px;width:{rex_pct:.1f}%;border-radius:4px;"></div>
+    </div>
+  </div>"""
+        else:
+            aum_bar_html = f"""
+  <div style="margin:8px 0;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:4px;">
+      <tr>
+        <td style="font-size:10px;color:{_GRAY};">Category: {_fmt_currency_safe(cat_aum)}</td>
+        <td style="font-size:10px;color:{_GRAY};text-align:right;">REX: $0</td>
+      </tr>
+    </table>
+    <div style="background:{_LIGHT};border-radius:4px;overflow:hidden;height:8px;"></div>
+    <div style="font-size:9px;color:{_GRAY};font-style:italic;margin-top:3px;">
+      REX has no products in this category</div>
+  </div>"""
+
     # Top 5 issuers table (aggregated from master)
     issuer_table = ""
     if master is not None and not master.empty and "category_display" in master.columns:
@@ -735,6 +881,7 @@ def _render_category_card(
     {_esc(display_name)}
   </div>
   {kpi_html}
+  {aum_bar_html}
   {issuer_table}
 </td></tr>"""
 
@@ -804,7 +951,10 @@ def _render_market_unavailable() -> str:
 def build_weekly_digest_html(
     db_session,
     dashboard_url: str = "",
+    format: str = "full",
 ) -> str:
+    # format="full" is the only implemented format.
+    # format="flash" reserved for future 1-screen executive summary.
     today = datetime.now()
     week_ending = today.strftime("%B %d, %Y")
     dash_url = dashboard_url or _DEFAULT_DASHBOARD_URL
@@ -830,8 +980,8 @@ def build_weekly_digest_html(
         # 3. Scorecard (with growth sub-labels)
         sections.append(_render_scorecard(market["kpis"], rex_df))
 
-        # 4. AUM by Suite (stacked bar)
-        aum_chart = _render_aum_stacked_bar(market["suites"])
+        # 4. AUM by Suite (treemap grid)
+        aum_chart = _render_aum_stacked_bar(market["suites"], rex_df)
         if aum_chart:
             sections.append(aum_chart)
 
@@ -890,13 +1040,14 @@ def build_weekly_digest_html(
 def send_weekly_digest(
     db_session,
     dashboard_url: str = "",
+    format: str = "full",
 ) -> bool:
     recipients = _load_recipients()
     if not recipients:
         log.warning("Weekly digest: no recipients configured")
         return False
 
-    html_body = build_weekly_digest_html(db_session, dashboard_url)
+    html_body = build_weekly_digest_html(db_session, dashboard_url, format=format)
     today = datetime.now()
     week_ending = today.strftime("%B %d, %Y")
     subject = f"REX ETF Weekly Report - Week of {week_ending}"
