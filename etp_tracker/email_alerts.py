@@ -48,6 +48,17 @@ def _load_recipients(project_root: Path | None = None) -> list[str]:
     return [e.strip() for e in env_to.split(",") if e.strip()]
 
 
+def _load_private_recipients(project_root: Path | None = None) -> list[str]:
+    """Load private recipient list (sent separately, not visible to main list)."""
+    if project_root is None:
+        project_root = Path(__file__).parent.parent
+    private_file = project_root / "config" / "email_recipients_private.txt"
+    if private_file.exists():
+        lines = private_file.read_text().strip().splitlines()
+        return [line.strip() for line in lines if line.strip() and not line.startswith("#")]
+    return []
+
+
 def _get_smtp_config() -> dict:
     project_root = Path(__file__).parent.parent
     env_file = project_root / "config" / ".env"
@@ -601,10 +612,16 @@ def send_digest_from_db(
 ) -> bool:
     """Build digest from database and send. Always works without CSV files."""
     recipients = _load_recipients()
-    if not recipients:
+    private = _load_private_recipients()
+    if not recipients and not private:
         return False
     html_body = build_digest_html_from_db(db_session, dashboard_url, since_date)
-    return _send_html_digest(html_body, recipients)
+    ok = True
+    if recipients:
+        ok = _send_html_digest(html_body, recipients)
+    if private:
+        _send_html_digest(html_body, private)
+    return ok
 
 
 def build_digest_html(

@@ -29,7 +29,7 @@ import pandas as pd
 
 from etp_tracker.email_alerts import (
     _NAVY, _GREEN, _ORANGE, _RED, _BLUE, _GRAY, _LIGHT, _BORDER, _WHITE,
-    _esc, _load_recipients, _get_smtp_config,
+    _esc, _load_recipients, _load_private_recipients, _get_smtp_config,
 )
 
 log = logging.getLogger(__name__)
@@ -364,7 +364,8 @@ def _render_stacked_bar(segments: list[tuple[str, float, str]], total_label: str
         if pct < 0.5:
             continue
         bar_cells.append(
-            f'<td style="background:{color};height:18px;width:{pct:.1f}%;"></td>'
+            f'<td style="background:{color};height:18px;width:{pct:.1f}%;'
+            f'font-size:1px;line-height:18px;">&nbsp;</td>'
         )
     return (
         f'<table width="100%" cellpadding="0" cellspacing="0" border="0" '
@@ -487,29 +488,30 @@ def _render_diverging_bar_chart(title: str, items: list[tuple[str, float]], subt
 
         # Build a single-row bar: left half (50%) | center line | right half (50%)
         # Negative bars fill the left half right-to-left; positive fill right half left-to-right
+        _bar_h = "height:16px;font-size:1px;line-height:16px;"
         if val < 0:
             left_empty = 50 - bar_pct
             bar_html = (
-                f'<td style="width:{left_empty:.1f}%;padding:0;"></td>'
+                f'<td style="width:{left_empty:.1f}%;{_bar_h}padding:0;">&nbsp;</td>'
                 f'<td style="width:{bar_pct:.1f}%;background:{bar_color};'
-                f'height:16px;border-radius:3px 0 0 3px;padding:0;"></td>'
-                f'<td style="width:2px;background:{_BORDER};padding:0;"></td>'
-                f'<td style="width:50%;padding:0;"></td>'
+                f'{_bar_h}border-radius:3px 0 0 3px;padding:0;">&nbsp;</td>'
+                f'<td style="width:2px;background:{_BORDER};{_bar_h}padding:0;">&nbsp;</td>'
+                f'<td style="width:50%;{_bar_h}padding:0;">&nbsp;</td>'
             )
         elif val > 0:
             right_empty = 50 - bar_pct
             bar_html = (
-                f'<td style="width:50%;padding:0;"></td>'
-                f'<td style="width:2px;background:{_BORDER};padding:0;"></td>'
+                f'<td style="width:50%;{_bar_h}padding:0;">&nbsp;</td>'
+                f'<td style="width:2px;background:{_BORDER};{_bar_h}padding:0;">&nbsp;</td>'
                 f'<td style="width:{bar_pct:.1f}%;background:{bar_color};'
-                f'height:16px;border-radius:0 3px 3px 0;padding:0;"></td>'
-                f'<td style="width:{right_empty:.1f}%;padding:0;"></td>'
+                f'{_bar_h}border-radius:0 3px 3px 0;padding:0;">&nbsp;</td>'
+                f'<td style="width:{right_empty:.1f}%;{_bar_h}padding:0;">&nbsp;</td>'
             )
         else:
             bar_html = (
-                f'<td style="width:50%;padding:0;"></td>'
-                f'<td style="width:2px;background:{_BORDER};padding:0;"></td>'
-                f'<td style="width:50%;padding:0;"></td>'
+                f'<td style="width:50%;{_bar_h}padding:0;">&nbsp;</td>'
+                f'<td style="width:2px;background:{_BORDER};{_bar_h}padding:0;">&nbsp;</td>'
+                f'<td style="width:50%;{_bar_h}padding:0;">&nbsp;</td>'
             )
 
         rows.append(
@@ -1100,21 +1102,8 @@ def build_weekly_digest_html(
 # ---------------------------------------------------------------------------
 # Send
 # ---------------------------------------------------------------------------
-def send_weekly_digest(
-    db_session,
-    dashboard_url: str = "",
-    format: str = "full",
-) -> bool:
-    recipients = _load_recipients()
-    if not recipients:
-        log.warning("Weekly digest: no recipients configured")
-        return False
-
-    html_body = build_weekly_digest_html(db_session, dashboard_url, format=format)
-    today = datetime.now()
-    week_ending = today.strftime("%B %d, %Y")
-    subject = f"REX ETF Weekly Report - Week of {week_ending}"
-
+def _send_weekly_html(subject: str, html_body: str, recipients: list[str]) -> bool:
+    """Send weekly digest HTML to a list of recipients."""
     # Try Azure Graph API first
     try:
         from webapp.services.graph_email import is_configured, send_email
@@ -1149,3 +1138,27 @@ def send_weekly_digest(
     except Exception as exc:
         log.error("Weekly digest send failed: %s", exc)
         return False
+
+
+def send_weekly_digest(
+    db_session,
+    dashboard_url: str = "",
+    format: str = "full",
+) -> bool:
+    recipients = _load_recipients()
+    private = _load_private_recipients()
+    if not recipients and not private:
+        log.warning("Weekly digest: no recipients configured")
+        return False
+
+    html_body = build_weekly_digest_html(db_session, dashboard_url, format=format)
+    today = datetime.now()
+    week_ending = today.strftime("%B %d, %Y")
+    subject = f"REX ETF Weekly Report - Week of {week_ending}"
+
+    ok = True
+    if recipients:
+        ok = _send_weekly_html(subject, html_body, recipients)
+    if private:
+        _send_weekly_html(subject, html_body, private)
+    return ok

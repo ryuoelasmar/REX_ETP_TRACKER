@@ -28,6 +28,7 @@ nul
 .env.local
 *.env
 !config/.env.example
+config/email_recipients_private.txt
 
 # Temporary/scratch files
 temp/
