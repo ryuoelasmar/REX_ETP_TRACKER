@@ -4,15 +4,12 @@ Email Alerts - Daily Brief
 Email-client-compatible HTML digest (inline styles, table layout, no JS).
 Works in Outlook, Gmail, Apple Mail, etc.
 
-Focused on what's new: fund launches, new filings, and pending products.
-Scannable in 30 seconds.
-
 Sections:
   1. Header
-  2. New Fund Launches (inception in last 7 days, from Bloomberg master data)
-  3. New Filings (485 forms filed in last 24h, REX trusts first)
-  4. Upcoming Launches (PENDING funds with expected effective dates)
-  5. At a Glance (compact KPI strip)
+  2. KPI Scorecard (Trusts, Effective Today, Pending)
+  3. New Fund Launches (inception in last 24h, from Bloomberg master data)
+  4. New Filings (485 forms filed in last 24h, REX trusts first)
+  5. Upcoming Effectiveness (PENDING funds with expected effective dates)
   6. Dashboard CTA
   7. Footer
 """
@@ -151,16 +148,47 @@ def _render_daily_html(data: dict, dashboard_url: str = "") -> str:
     today = datetime.now()
     dash_link = _esc(dashboard_url) if dashboard_url else ""
 
-    # --- Section 1: Header ---
+    # --- Header ---
     header = f"""
 <tr><td style="background:{_NAVY};padding:24px 30px;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-    <td style="color:{_WHITE};font-size:22px;font-weight:700;">REX ETP Daily Brief</td>
+    <td style="color:{_WHITE};font-size:22px;font-weight:700;">REX ETF Daily Brief</td>
     <td align="right" style="color:rgba(255,255,255,0.7);font-size:13px;">{today.strftime('%A, %B %d, %Y')}</td>
   </tr></table>
 </td></tr>"""
 
-    # --- Section 2: New Fund Launches ---
+    # --- KPI Scorecard (top of email) ---
+    trust_count = data.get("trust_count", 0)
+    newly_effective = data.get("newly_effective_1d", 0)
+    total_pending = data.get("total_pending", 0)
+
+    _kpi_cell = f"padding:12px 8px;background:{_LIGHT};border-radius:8px;text-align:center;"
+    _kpi_val = f"font-size:24px;font-weight:700;color:{_NAVY};"
+    _kpi_lbl = f"font-size:10px;color:{_GRAY};text-transform:uppercase;letter-spacing:0.5px;"
+
+    scorecard = f"""
+<tr><td style="padding:20px 30px 10px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td width="31%" style="{_kpi_cell}">
+        <div style="{_kpi_val}">{trust_count}</div>
+        <div style="{_kpi_lbl}">Trusts Monitored</div>
+      </td>
+      <td width="3%"></td>
+      <td width="31%" style="{_kpi_cell}">
+        <div style="{_kpi_val}color:{_GREEN};">{newly_effective}</div>
+        <div style="{_kpi_lbl}">Effective Today</div>
+      </td>
+      <td width="3%"></td>
+      <td width="31%" style="{_kpi_cell}">
+        <div style="{_kpi_val}color:{_ORANGE};">{total_pending}</div>
+        <div style="{_kpi_lbl}">Pending</div>
+      </td>
+    </tr>
+  </table>
+</td></tr>"""
+
+    # --- New Fund Launches ---
     launches = data.get("launches", [])
     if launches:
         launch_rows = []
@@ -169,15 +197,15 @@ def _render_daily_html(data: dict, dashboard_url: str = "") -> str:
             name = _esc(f.get("fund_name", ""))
             if len(name) > 40:
                 name = name[:37] + "..."
-            trust = _esc(f.get("trust_name", ""))
-            if len(trust) > 25:
-                trust = trust[:22] + "..."
+            issuer = _esc(f.get("trust_name", ""))
+            if len(issuer) > 25:
+                issuer = issuer[:22] + "..."
             eff_date = _esc(f.get("effective_date", ""))
             is_rex = f.get("is_rex", False)
-            name_html = name
+            issuer_html = issuer
             if is_rex:
-                name_html = (
-                    f'{name} <span style="background:{_BLUE};color:{_WHITE};'
+                issuer_html = (
+                    f'{issuer} <span style="background:{_BLUE};color:{_WHITE};'
                     f'padding:1px 5px;border-radius:3px;font-size:8px;'
                     f'font-weight:700;vertical-align:middle;">REX</span>'
                 )
@@ -186,9 +214,9 @@ def _render_daily_html(data: dict, dashboard_url: str = "") -> str:
                 f'<td style="padding:5px 8px;border-bottom:1px solid {_BORDER};'
                 f'font-size:11px;font-weight:600;white-space:nowrap;">{ticker}</td>'
                 f'<td style="padding:5px 8px;border-bottom:1px solid {_BORDER};'
-                f'font-size:11px;">{name_html}</td>'
+                f'font-size:11px;">{name}</td>'
                 f'<td style="padding:5px 8px;border-bottom:1px solid {_BORDER};'
-                f'font-size:10px;color:{_GRAY};">{trust}</td>'
+                f'font-size:10px;color:{_GRAY};">{issuer_html}</td>'
                 f'<td style="padding:5px 8px;border-bottom:1px solid {_BORDER};'
                 f'font-size:10px;text-align:right;color:{_GRAY};">{eff_date}</td>'
                 f'</tr>'
@@ -199,25 +227,22 @@ def _render_daily_html(data: dict, dashboard_url: str = "") -> str:
                 f'<div style="font-size:10px;color:{_GRAY};margin-top:4px;">'
                 f'+ {len(launches) - 15} more on dashboard</div>'
             )
+        _col = (
+            f"padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;"
+            f"border-bottom:1px solid {_BORDER};"
+        )
         launches_section = f"""
-<tr><td style="padding:20px 30px 10px;">
+<tr><td style="padding:15px 30px 10px;">
   <div style="font-size:16px;font-weight:700;color:{_NAVY};margin:0 0 8px 0;
     padding-bottom:6px;border-bottom:2px solid {_GREEN};">
     New Fund Launches
   </div>
-  <div style="font-size:12px;color:{_GRAY};margin-bottom:8px;">
-    New ETF products launched in the past week
-  </div>
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
     <tr>
-      <td style="padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;
-        border-bottom:1px solid {_BORDER};">Ticker</td>
-      <td style="padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;
-        border-bottom:1px solid {_BORDER};">Fund Name</td>
-      <td style="padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;
-        border-bottom:1px solid {_BORDER};">Issuer</td>
-      <td style="padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;
-        border-bottom:1px solid {_BORDER};text-align:right;">Launched</td>
+      <td style="{_col}">Ticker</td>
+      <td style="{_col}">Fund Name</td>
+      <td style="{_col}">Issuer</td>
+      <td style="{_col}text-align:right;">Launched</td>
     </tr>
     {''.join(launch_rows)}
   </table>
@@ -225,18 +250,18 @@ def _render_daily_html(data: dict, dashboard_url: str = "") -> str:
 </td></tr>"""
     else:
         launches_section = f"""
-<tr><td style="padding:20px 30px 10px;">
+<tr><td style="padding:15px 30px 10px;">
   <div style="font-size:16px;font-weight:700;color:{_NAVY};margin:0 0 8px 0;
     padding-bottom:6px;border-bottom:2px solid {_GREEN};">
     New Fund Launches
   </div>
   <div style="padding:12px;background:{_LIGHT};border-radius:6px;
     font-size:13px;color:{_GRAY};text-align:center;">
-    No new launches this week.
+    No new launches today.
   </div>
 </td></tr>"""
 
-    # --- Section 3: New Filings ---
+    # --- New Filings ---
     filing_groups = data.get("filing_groups", [])
     if filing_groups:
         filing_rows = []
@@ -273,26 +298,22 @@ def _render_daily_html(data: dict, dashboard_url: str = "") -> str:
                 f'<div style="font-size:10px;color:{_GRAY};margin-top:4px;">'
                 f'+ {len(filing_groups) - 10} more trusts filed</div>'
             )
+        _col = (
+            f"padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;"
+            f"border-bottom:1px solid {_BORDER};"
+        )
         filings_section = f"""
 <tr><td style="padding:15px 30px 10px;">
   <div style="font-size:16px;font-weight:700;color:{_NAVY};margin:0 0 8px 0;
     padding-bottom:6px;border-bottom:2px solid {_BLUE};">
     New Filings
   </div>
-  <div style="font-size:12px;color:{_GRAY};margin-bottom:8px;">
-    485 prospectus filings in the last 24 hours
-    {f' | <a href="{dash_link}/dashboard?days=1" style="color:{_BLUE};font-size:11px;">View on dashboard</a>' if dash_link else ''}
-  </div>
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
     <tr>
-      <td style="padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;
-        border-bottom:1px solid {_BORDER};">Trust</td>
-      <td style="padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;
-        border-bottom:1px solid {_BORDER};text-align:center;">Form</td>
-      <td style="padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;
-        border-bottom:1px solid {_BORDER};text-align:center;">Funds</td>
-      <td style="padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;
-        border-bottom:1px solid {_BORDER};text-align:right;">Filed</td>
+      <td style="{_col}">Trust</td>
+      <td style="{_col}text-align:center;">Form</td>
+      <td style="{_col}text-align:center;">Funds</td>
+      <td style="{_col}text-align:right;">Filed</td>
     </tr>
     {''.join(filing_rows)}
   </table>
@@ -311,7 +332,7 @@ def _render_daily_html(data: dict, dashboard_url: str = "") -> str:
   </div>
 </td></tr>"""
 
-    # --- Section 4: Upcoming Launches ---
+    # --- Upcoming Effectiveness ---
     pending = data.get("pending", [])
     pending_section = ""
     if pending:
@@ -325,113 +346,74 @@ def _render_daily_html(data: dict, dashboard_url: str = "") -> str:
                 trust = trust[:22] + "..."
             eff_date = _esc(p.get("effective_date", ""))
             is_rex = p.get("is_rex", False)
-            name_html = name
+            trust_html = trust
             if is_rex:
-                name_html = (
-                    f'{name} <span style="background:{_BLUE};color:{_WHITE};'
+                trust_html = (
+                    f'{trust} <span style="background:{_BLUE};color:{_WHITE};'
                     f'padding:1px 5px;border-radius:3px;font-size:8px;'
                     f'font-weight:700;vertical-align:middle;">REX</span>'
                 )
             pending_rows.append(
                 f'<tr>'
                 f'<td style="padding:4px 8px;border-bottom:1px solid {_BORDER};'
-                f'font-size:11px;">{name_html}</td>'
+                f'font-size:11px;">{name}</td>'
                 f'<td style="padding:4px 8px;border-bottom:1px solid {_BORDER};'
-                f'font-size:10px;color:{_GRAY};">{trust}</td>'
+                f'font-size:10px;color:{_GRAY};">{trust_html}</td>'
                 f'<td style="padding:4px 8px;border-bottom:1px solid {_BORDER};'
                 f'font-size:10px;text-align:right;color:{_ORANGE};font-weight:600;">{eff_date}</td>'
                 f'</tr>'
             )
         more_html = ""
-        total_pending = data.get("total_pending", len(pending))
-        if total_pending > 8:
+        total_p = data.get("total_pending", len(pending))
+        if total_p > 8:
             more_html = (
                 f'<div style="font-size:10px;color:{_GRAY};margin-top:4px;">'
-                f'+ {total_pending - 8} more on '
+                f'+ {total_p - 8} more on '
                 f'{"<a href=\"" + dash_link + "/dashboard?status=PENDING\" style=\"color:" + _BLUE + ";\">dashboard</a>" if dash_link else "dashboard"}'
                 f'</div>'
             )
+        _col = (
+            f"padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;"
+            f"border-bottom:1px solid {_BORDER};"
+        )
         pending_section = f"""
 <tr><td style="padding:15px 30px 10px;">
   <div style="font-size:16px;font-weight:700;color:{_NAVY};margin:0 0 8px 0;
     padding-bottom:6px;border-bottom:2px solid {_ORANGE};">
-    Upcoming Launches
-  </div>
-  <div style="font-size:12px;color:{_GRAY};margin-bottom:8px;">
-    Funds with expected effective dates on file
+    Upcoming Effectiveness
   </div>
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
     <tr>
-      <td style="padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;
-        border-bottom:1px solid {_BORDER};">Fund Name</td>
-      <td style="padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;
-        border-bottom:1px solid {_BORDER};">Trust</td>
-      <td style="padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;
-        border-bottom:1px solid {_BORDER};text-align:right;">Expected Date</td>
+      <td style="{_col}">Fund Name</td>
+      <td style="{_col}">Trust</td>
+      <td style="{_col}text-align:right;">Expected Effectiveness</td>
     </tr>
     {''.join(pending_rows)}
   </table>
   {more_html}
 </td></tr>"""
 
-    # --- Section 5: At a Glance ---
-    trust_count = data.get("trust_count", 0)
-    total_funds = data.get("total_funds", 0)
-    newly_effective_7d = data.get("newly_effective_7d", 0)
-    total_pending = data.get("total_pending", 0)
-
-    _kpi = f"padding:10px 6px;background:{_LIGHT};border-radius:6px;text-align:center;"
-    _kpi_num = f"font-size:22px;font-weight:700;color:{_NAVY};"
-    _kpi_lbl = f"font-size:9px;color:{_GRAY};text-transform:uppercase;letter-spacing:0.5px;"
-
-    glance_section = f"""
-<tr><td style="padding:15px 30px 10px;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr>
-      <td width="23%" style="{_kpi}">
-        <div style="{_kpi_num}">{trust_count}</div>
-        <div style="{_kpi_lbl}">Trusts</div>
-      </td>
-      <td width="2%"></td>
-      <td width="23%" style="{_kpi}">
-        <div style="{_kpi_num}">{total_funds:,}</div>
-        <div style="{_kpi_lbl}">Total Funds</div>
-      </td>
-      <td width="2%"></td>
-      <td width="23%" style="{_kpi}">
-        <div style="{_kpi_num}color:{_GREEN};">{newly_effective_7d}</div>
-        <div style="{_kpi_lbl}">Effective (7d)</div>
-      </td>
-      <td width="2%"></td>
-      <td width="23%" style="{_kpi}">
-        <div style="{_kpi_num}color:{_ORANGE};">{total_pending}</div>
-        <div style="{_kpi_lbl}">Pending</div>
-      </td>
-    </tr>
-  </table>
-</td></tr>"""
-
-    # --- Section 6: Dashboard CTA ---
+    # --- Dashboard CTA ---
     cta_section = _dashboard_cta(dash_link) if dash_link else ""
 
-    # --- Section 7: Footer ---
+    # --- Footer ---
     footer = f"""
 <tr><td style="padding:16px 30px;border-top:1px solid {_BORDER};">
   <div style="font-size:11px;color:{_GRAY};text-align:center;">
-    REX ETP Daily Brief | {today.strftime('%Y-%m-%d')}
+    REX ETF Daily Brief | {today.strftime('%Y-%m-%d')}
   </div>
   <div style="font-size:10px;color:{_GRAY};text-align:center;margin-top:4px;">
     Data sourced from SEC EDGAR | To unsubscribe, contact relasmar@rexfin.com
   </div>
 </td></tr>"""
 
-    # --- Assemble ---
-    body = header + launches_section + filings_section + pending_section + glance_section + cta_section + footer
+    # --- Assemble (KPIs at top) ---
+    body = header + scorecard + launches_section + filings_section + pending_section + cta_section + footer
 
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>REX ETP Daily Brief - {today.strftime('%Y-%m-%d')}</title>
+<title>REX ETF Daily Brief - {today.strftime('%Y-%m-%d')}</title>
 </head>
 <body style="margin:0;padding:0;background:{_LIGHT};
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
@@ -457,9 +439,9 @@ def _gather_daily_data(db_session, since_date: str | None = None) -> dict:
     if not since_date:
         since_date = (today - timedelta(days=1)).strftime("%Y-%m-%d")
     since_dt = date_type.fromisoformat(since_date)
-    week_ago = date_type.today() - timedelta(days=7)
+    yesterday = date_type.today() - timedelta(days=1)
 
-    # --- New launches: prefer Bloomberg inception_date (more accurate) ---
+    # --- New launches: Bloomberg inception_date in last 24h ---
     launches = []
     try:
         from webapp.services.market_data import data_available, get_master_data
@@ -471,7 +453,7 @@ def _gather_daily_data(db_session, since_date: str | None = None) -> dict:
             if "inception_date" in master.columns and "ticker_clean" in master.columns:
                 master = master.drop_duplicates(subset=["ticker_clean"], keep="first")
                 inception = pd.to_datetime(master["inception_date"], errors="coerce")
-                cutoff = pd.Timestamp.now() - pd.Timedelta(days=7)
+                cutoff = pd.Timestamp.now() - pd.Timedelta(days=1)
                 recent = master[inception >= cutoff].copy()
                 recent["_inception"] = inception[recent.index]
                 recent = recent.sort_values("_inception", ascending=False)
@@ -565,14 +547,10 @@ def _gather_daily_data(db_session, since_date: str | None = None) -> dict:
         select(func.count(Trust.id)).where(Trust.is_active == True)
     ).scalar() or 0
 
-    total_funds = db_session.execute(
-        select(func.count(FundStatus.id))
-    ).scalar() or 0
-
-    newly_effective_7d = db_session.execute(
+    newly_effective_1d = db_session.execute(
         select(func.count(FundStatus.id))
         .where(FundStatus.status == "EFFECTIVE")
-        .where(FundStatus.effective_date >= week_ago)
+        .where(FundStatus.effective_date >= yesterday)
     ).scalar() or 0
 
     total_pending = db_session.execute(
@@ -585,8 +563,7 @@ def _gather_daily_data(db_session, since_date: str | None = None) -> dict:
         "filing_groups": filing_groups,
         "pending": pending,
         "trust_count": trust_count,
-        "total_funds": total_funds,
-        "newly_effective_7d": newly_effective_7d,
+        "newly_effective_1d": newly_effective_1d,
         "total_pending": total_pending,
     }
 
@@ -603,7 +580,7 @@ def build_digest_html_from_db(
 
 def _send_html_digest(html_body: str, recipients: list[str]) -> bool:
     """Send pre-built HTML digest via Azure Graph or SMTP."""
-    subject = f"REX ETP Daily Brief - {datetime.now().strftime('%Y-%m-%d')}"
+    subject = f"REX ETF Daily Brief - {datetime.now().strftime('%Y-%m-%d')}"
 
     # Try Azure Graph API first
     try:

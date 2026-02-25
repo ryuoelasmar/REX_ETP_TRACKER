@@ -1,23 +1,20 @@
 """
-REX ETF Weekly Report - Executive Email Digest v5
+REX ETF Weekly Report - Executive Email Digest v6
 
 Email-client-compatible HTML digest (inline styles, table layout, no JS).
-Combines Bloomberg market data (ETF-only) and SEC filing activity into a
-comprehensive executive-ready weekly email for REX Financial team members.
+Bloomberg market data (ETF-only) + SEC filing activity.
 
 Sections:
   1. Header
-  2. Filing Activity
-  3. REX Scorecard (4 KPIs: AUM, 1W Flows, 1M Flows, Products)
+  2. Filing Activity (KPI cards)
+  3. REX Scorecard (AUM, Products, 1W Flows, 1M Flows)
   4. AUM by Suite (donut chart + legend)
   5. 1W Flows by Suite (diverging bar chart)
   6. Winners, Losers & Yielders (vertical, with 1W Flow)
-  7. Market Landscape (5 categories: 3 KPIs + issuer table w/ share & launches)
-  8. ETF Universe (total market donut chart by category)
+  7. ETF Universe (market KPIs, no chart)
+  8. Market Landscape (5 categories: 4 KPIs + issuer table)
   9. Dashboard CTA
   10. Footer
-
-Supports format="full" (default). format="flash" reserved for future 1-screen summary.
 """
 from __future__ import annotations
 
@@ -255,25 +252,29 @@ def _render_filing_activity(filing_data: dict) -> str:
 
     return f"""
 <tr><td style="padding:20px 30px 10px;">
-  <div style="{_SECTION_TITLE}">Filing Activity (Last 7 Days)</div>
-  <div style="font-size:12px;color:{_GRAY};margin-bottom:10px;">
-    Scanning {trust_count} trusts across the ETP landscape
-  </div>
-  <table width="100%" cellpadding="0" cellspacing="0" border="0"
-         style="background:#e3f2fd;border-left:4px solid {_BLUE};border-radius:0 8px 8px 0;">
-    <tr><td style="padding:15px 20px;">
-      <table cellpadding="0" cellspacing="0" border="0"><tr>
-        <td style="padding-right:28px;font-size:14px;">
-          <span style="font-size:22px;font-weight:700;color:{_BLUE};">{filings}</span> fund filings
-        </td>
-        <td style="padding-right:28px;font-size:14px;">
-          <span style="font-size:22px;font-weight:700;color:{_GREEN};">{effective}</span> newly effective
-        </td>
-        <td style="font-size:14px;">
-          <span style="font-size:22px;font-weight:700;color:{_ORANGE};">{pending}</span> pending funds
-        </td>
-      </tr></table>
-    </td></tr>
+  <div style="{_SECTION_TITLE}">Filing Activity</div>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td width="24%" style="{_KPI_BOX}">
+        <div style="{_KPI_VALUE}">{trust_count}</div>
+        <div style="{_KPI_LABEL}">Trusts Monitored</div>
+      </td>
+      <td width="1%"></td>
+      <td width="24%" style="{_KPI_BOX}">
+        <div style="font-size:24px;font-weight:700;color:{_BLUE};">{filings}</div>
+        <div style="{_KPI_LABEL}">Filings (7d)</div>
+      </td>
+      <td width="1%"></td>
+      <td width="24%" style="{_KPI_BOX}">
+        <div style="font-size:24px;font-weight:700;color:{_GREEN};">{effective}</div>
+        <div style="{_KPI_LABEL}">Newly Effective</div>
+      </td>
+      <td width="1%"></td>
+      <td width="24%" style="{_KPI_BOX}">
+        <div style="font-size:24px;font-weight:700;color:{_ORANGE};">{pending}</div>
+        <div style="{_KPI_LABEL}">Pending</div>
+      </td>
+    </tr>
   </table>
 </td></tr>"""
 
@@ -330,11 +331,11 @@ def _render_scorecard(kpis: dict, rex_df: pd.DataFrame = None) -> str:
     <tr>
       {_card(total_aum, "Total AUM", sub_label=aum_sub)}
       <td width="2%"></td>
-      {_card(flow_1w, "1W Net Flows", _flow_color(flow_1w_val))}
-      <td width="2%"></td>
-      {_card(flow_1m, "1M Net Flows", _flow_color(flow_1m_val))}
-      <td width="2%"></td>
       {_card(str(num_products), "Products", sub_label=products_sub)}
+      <td width="2%"></td>
+      {_card(flow_1w, "1W Flows", _flow_color(flow_1w_val))}
+      <td width="2%"></td>
+      {_card(flow_1m, "1M Flows", _flow_color(flow_1m_val))}
     </tr>
   </table>
 </td></tr>"""
@@ -626,18 +627,18 @@ def _render_winners_losers_yielders(perf_metrics: dict, rex_df: pd.DataFrame) ->
         )
         col_headers = (
             f'<tr>'
-            f'<td style="{_col_header}width:60px;">Ticker</td>'
+            f'<td style="{_col_header}width:50px;">Ticker</td>'
             f'<td style="{_col_header}">Fund Name</td>'
-            f'<td style="{_col_header}text-align:right;width:80px;">{_esc(metric_label)}</td>'
-            f'<td style="{_col_header}text-align:right;width:80px;">1W Flow</td>'
+            f'<td style="{_col_header}text-align:right;width:70px;">{_esc(metric_label)}</td>'
+            f'<td style="{_col_header}text-align:right;width:70px;">1W Flow</td>'
             f'</tr>'
         )
         rows = []
         for item in items[:5]:
             ticker = _esc(item.get("ticker", ""))
             name = _esc(item.get("fund_name", ""))
-            if len(name) > 35:
-                name = name[:32] + "..."
+            if len(name) > 50:
+                name = name[:47] + "..."
             value = _esc(item.get("value_fmt", ""))
             flow = flow_lookup.get(item.get("ticker", ""), 0)
             flow_fmt = _fmt_flow_safe(flow) if flow != 0 else f'<span style="color:{_GRAY};">--</span>'
@@ -645,13 +646,13 @@ def _render_winners_losers_yielders(perf_metrics: dict, rex_df: pd.DataFrame) ->
             rows.append(
                 f'<tr>'
                 f'<td style="padding:3px 6px;font-size:11px;font-weight:600;'
-                f'border-bottom:1px solid {_BORDER};white-space:nowrap;width:60px;">{ticker}</td>'
+                f'border-bottom:1px solid {_BORDER};white-space:nowrap;width:50px;">{ticker}</td>'
                 f'<td style="padding:3px 6px;font-size:10px;color:{_GRAY};'
                 f'border-bottom:1px solid {_BORDER};">{name}</td>'
                 f'<td style="padding:3px 6px;font-size:11px;text-align:right;font-weight:600;'
-                f'border-bottom:1px solid {_BORDER};color:{title_color};width:80px;">{value}</td>'
+                f'border-bottom:1px solid {_BORDER};color:{title_color};width:70px;">{value}</td>'
                 f'<td style="padding:3px 6px;font-size:11px;text-align:right;font-weight:600;'
-                f'border-bottom:1px solid {_BORDER};color:{flow_clr};width:80px;">{flow_fmt}</td>'
+                f'border-bottom:1px solid {_BORDER};color:{flow_clr};width:70px;">{flow_fmt}</td>'
                 f'</tr>'
             )
         return (
@@ -687,7 +688,7 @@ def _render_landscape_header() -> str:
     Market Landscape
   </div>
   <div style="font-size:12px;color:{_GRAY};margin-top:6px;">
-    Full competitive picture across REX-relevant ETP categories
+    Competitive landscape by category
   </div>
 </td></tr>"""
 
@@ -740,6 +741,11 @@ def _render_category_card(
                         f'<div style="font-size:9px;color:{_GREEN};font-weight:600;">'
                         f'+{new_count} this week</div>'
                     )
+                else:
+                    products_new_sub = (
+                        f'<div style="font-size:9px;color:{_GRAY};">'
+                        f'0 launched</div>'
+                    )
                 # Per-issuer launch counts
                 if "issuer_display" in cat_df.columns:
                     new_df = cat_df[new_mask]
@@ -748,8 +754,10 @@ def _render_category_card(
                             new_df.groupby("issuer_display").size()
                         )
 
-    # Flow color
-    flow_color = _flow_color(flow_1w)
+    # Flow colors
+    flow_1w_color = _flow_color(flow_1w)
+    flow_1m = cat_kpis.get("flow_1m", 0)
+    flow_1m_color = _flow_color(flow_1m)
 
     # Light gray column header style (matches WLY section)
     _cat_col_header = (
@@ -757,26 +765,31 @@ def _render_category_card(
         f"letter-spacing:0.5px;border-bottom:1px solid {_BORDER};"
     )
 
-    # 3 KPI row (AUM, 1W Flow, Products)
+    # 4 KPI row (AUM, Products, 1W Flows, 1M Flows)
     _kpi_cell = f"padding:6px 4px;background:{_LIGHT};border-radius:6px;text-align:center;"
     kpi_html = f"""
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px;">
     <tr>
-      <td width="32%" style="{_kpi_cell}">
+      <td width="24%" style="{_kpi_cell}">
         <div style="font-size:15px;font-weight:700;color:{_NAVY};">{_fmt_currency_safe(cat_aum)}</div>
         {aum_growth_sub}
         <div style="font-size:9px;color:{_GRAY};text-transform:uppercase;">Total AUM</div>
       </td>
-      <td width="2%"></td>
-      <td width="32%" style="{_kpi_cell}">
-        <div style="font-size:15px;font-weight:700;color:{flow_color};">{_fmt_flow_safe(flow_1w)}</div>
-        <div style="font-size:9px;color:{_GRAY};text-transform:uppercase;">1W Flows</div>
-      </td>
-      <td width="2%"></td>
-      <td width="32%" style="{_kpi_cell}">
+      <td width="1%"></td>
+      <td width="24%" style="{_kpi_cell}">
         <div style="font-size:15px;font-weight:700;color:{_NAVY};">{num_products}</div>
         {products_new_sub}
         <div style="font-size:9px;color:{_GRAY};text-transform:uppercase;">Products</div>
+      </td>
+      <td width="1%"></td>
+      <td width="24%" style="{_kpi_cell}">
+        <div style="font-size:15px;font-weight:700;color:{flow_1w_color};">{_fmt_flow_safe(flow_1w)}</div>
+        <div style="font-size:9px;color:{_GRAY};text-transform:uppercase;">1W Flows</div>
+      </td>
+      <td width="1%"></td>
+      <td width="24%" style="{_kpi_cell}">
+        <div style="font-size:15px;font-weight:700;color:{flow_1m_color};">{_fmt_flow_safe(flow_1m)}</div>
+        <div style="font-size:9px;color:{_GRAY};text-transform:uppercase;">1M Flows</div>
       </td>
     </tr>
   </table>"""
@@ -889,7 +902,7 @@ def _render_landscape(landscape: dict, master: pd.DataFrame = None) -> str:
 
 
 def _render_etf_universe(master: pd.DataFrame) -> str:
-    """ETF Universe section: total market overview with AUM donut chart by category."""
+    """ETF Universe section: total market KPIs (no chart)."""
     if master is None or master.empty:
         return ""
 
@@ -912,92 +925,48 @@ def _render_etf_universe(master: pd.DataFrame) -> str:
     total_aum = float(deduped["t_w4.aum"].sum()) if "t_w4.aum" in deduped.columns else 0
     total_products = len(deduped)
     total_flow_1w = float(deduped["t_w4.fund_flow_1week"].sum()) if "t_w4.fund_flow_1week" in deduped.columns else 0
+    total_flow_1m = float(deduped["t_w4.fund_flow_1month"].sum()) if "t_w4.fund_flow_1month" in deduped.columns else 0
     total_issuers = deduped["issuer_display"].nunique() if "issuer_display" in deduped.columns else 0
 
-    # New launches this week
+    # New launches & new issuers this week
     launches_sub = ""
+    issuers_sub = ""
     if "inception_date" in deduped.columns:
         cutoff_7d = pd.Timestamp.now() - pd.Timedelta(days=7)
         inception = pd.to_datetime(deduped["inception_date"], errors="coerce")
-        new_count = int((inception >= cutoff_7d).sum())
+        new_mask = inception >= cutoff_7d
+        new_count = int(new_mask.sum())
         if new_count > 0:
             launches_sub = (
                 f'<div style="font-size:9px;color:{_GREEN};font-weight:600;margin-top:2px;">'
                 f'+{new_count} this week</div>'
             )
-
-    # AUM by category for donut chart
-    segments = []
-    cat_colors = {
-        "Leverage & Inverse - Single Stock": "#e74c3c",
-        "Income - Single Stock": "#f39c12",
-        "Income - Index/Basket/ETF Based": "#0984e3",
-        "Crypto": "#8e44ad",
-        "Thematic": "#27ae60",
-        "Leverage & Inverse - Index/Basket/ETF Based": "#2d3436",
-    }
-    if "category_display" in deduped.columns and "t_w4.aum" in deduped.columns:
-        cat_aums = deduped.groupby("category_display")["t_w4.aum"].sum().sort_values(ascending=False)
-        other_aum = 0.0
-        for cat, aum in cat_aums.items():
-            cat_str = str(cat)
-            pct = (aum / total_aum * 100) if total_aum > 0 else 0
-            if cat_str in cat_colors and pct >= 2:
-                segments.append((cat_str, float(aum), cat_colors[cat_str]))
-            else:
-                other_aum += float(aum)
-        if other_aum > 0:
-            segments.append(("Other", other_aum, _GRAY))
-
-    # Donut + legend layout
-    donut_html = ""
-    if segments:
-        donut = _render_donut_svg(segments, _fmt_currency_safe(total_aum))
-        legend_rows = []
-        for name, val, color in segments:
-            pct = (val / total_aum * 100) if total_aum > 0 else 0
-            # Short display names for legend
-            short_names = {
-                "Leverage & Inverse - Single Stock": "Lev Single Stock",
-                "Income - Single Stock": "CC Single Stock",
-                "Income - Index/Basket/ETF Based": "CC Index/ETF",
-                "Leverage & Inverse - Index/Basket/ETF Based": "Lev Index/ETF",
-            }
-            display = short_names.get(name, name)
-            legend_rows.append(
-                f'<tr>'
-                f'<td style="padding:2px 4px;width:10px;">'
-                f'<div style="width:8px;height:8px;background:{color};border-radius:2px;"></div></td>'
-                f'<td style="padding:2px 4px;font-size:10px;">{_esc(display)}</td>'
-                f'<td style="padding:2px 4px;font-size:10px;text-align:right;color:{_GRAY};">{pct:.0f}%</td>'
-                f'</tr>'
+        else:
+            launches_sub = (
+                f'<div style="font-size:9px;color:{_GRAY};margin-top:2px;">'
+                f'0 launched</div>'
             )
-        donut_html = f"""
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
-      <tr>
-        <td width="40%" align="center" style="padding:6px;">{donut}</td>
-        <td width="60%" valign="middle">
-          <table width="100%" cellpadding="0" cellspacing="0" border="0">
-            {''.join(legend_rows)}
-          </table>
-        </td>
-      </tr>
-    </table>"""
+        # New issuers: issuers whose ONLY products launched in last 7d
+        if "issuer_display" in deduped.columns:
+            old_issuers = set(deduped[~new_mask]["issuer_display"].dropna().unique())
+            new_product_issuers = set(deduped[new_mask]["issuer_display"].dropna().unique())
+            new_issuer_count = len(new_product_issuers - old_issuers)
+            if new_issuer_count > 0:
+                issuers_sub = (
+                    f'<div style="font-size:9px;color:{_GREEN};font-weight:600;margin-top:2px;">'
+                    f'+{new_issuer_count} new</div>'
+                )
 
-    # KPI cards
+    # Row 1: AUM, Products, 1W Flows, 1M Flows
     _kpi_cell = f"padding:6px 4px;background:{_LIGHT};border-radius:6px;text-align:center;"
-    flow_color = _flow_color(total_flow_1w)
-    kpi_html = f"""
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px;">
+    flow_1w_color = _flow_color(total_flow_1w)
+    flow_1m_color = _flow_color(total_flow_1m)
+    row1 = f"""
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:6px;">
       <tr>
         <td width="24%" style="{_kpi_cell}">
           <div style="font-size:15px;font-weight:700;color:{_NAVY};">{_fmt_currency_safe(total_aum)}</div>
           <div style="font-size:9px;color:{_GRAY};text-transform:uppercase;">Total AUM</div>
-        </td>
-        <td width="1%"></td>
-        <td width="24%" style="{_kpi_cell}">
-          <div style="font-size:15px;font-weight:700;color:{flow_color};">{_fmt_flow_safe(total_flow_1w)}</div>
-          <div style="font-size:9px;color:{_GRAY};text-transform:uppercase;">1W Flows</div>
         </td>
         <td width="1%"></td>
         <td width="24%" style="{_kpi_cell}">
@@ -1007,9 +976,27 @@ def _render_etf_universe(master: pd.DataFrame) -> str:
         </td>
         <td width="1%"></td>
         <td width="24%" style="{_kpi_cell}">
+          <div style="font-size:15px;font-weight:700;color:{flow_1w_color};">{_fmt_flow_safe(total_flow_1w)}</div>
+          <div style="font-size:9px;color:{_GRAY};text-transform:uppercase;">1W Flows</div>
+        </td>
+        <td width="1%"></td>
+        <td width="24%" style="{_kpi_cell}">
+          <div style="font-size:15px;font-weight:700;color:{flow_1m_color};">{_fmt_flow_safe(total_flow_1m)}</div>
+          <div style="font-size:9px;color:{_GRAY};text-transform:uppercase;">1M Flows</div>
+        </td>
+      </tr>
+    </table>"""
+
+    # Row 2: Issuers (standalone, centered)
+    row2 = f"""
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td width="24%" style="{_kpi_cell}">
           <div style="font-size:15px;font-weight:700;color:{_NAVY};">{total_issuers}</div>
+          {issuers_sub}
           <div style="font-size:9px;color:{_GRAY};text-transform:uppercase;">Issuers</div>
         </td>
+        <td width="76%"></td>
       </tr>
     </table>"""
 
@@ -1019,11 +1006,11 @@ def _render_etf_universe(master: pd.DataFrame) -> str:
     padding-bottom:8px;border-bottom:3px solid {_NAVY};">
     ETF Universe
   </div>
-  <div style="font-size:12px;color:{_GRAY};margin-top:6px;margin-bottom:12px;">
-    Total leveraged, income, crypto & thematic ETF market (deduplicated)
+  <div style="font-size:12px;color:{_GRAY};margin-top:6px;margin-bottom:10px;">
+    Leveraged, income, crypto & thematic ETF market (deduplicated)
   </div>
-  {kpi_html}
-  {donut_html}
+  {row1}
+  {row2}
 </td></tr>"""
 
 
@@ -1118,17 +1105,17 @@ def build_weekly_digest_html(
         if wly:
             sections.append(wly)
 
-        # --- PART 3: Category Landscape ---
-        landscape = market.get("landscape", {})
+        # --- PART 3: ETF Universe (above categories) ---
         master_df = market.get("master", pd.DataFrame())
-        landscape_html = _render_landscape(landscape, master_df)
-        if landscape_html:
-            sections.append(landscape_html)
-
-        # --- PART 4: ETF Universe ---
         etf_universe = _render_etf_universe(master_df)
         if etf_universe:
             sections.append(etf_universe)
+
+        # --- PART 4: Category Landscape ---
+        landscape = market.get("landscape", {})
+        landscape_html = _render_landscape(landscape, master_df)
+        if landscape_html:
+            sections.append(landscape_html)
     else:
         sections.append(_render_scorecard_unavailable())
         sections.append(_render_market_unavailable())
