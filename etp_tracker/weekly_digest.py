@@ -1012,6 +1012,7 @@ def build_weekly_digest_html(
     db_session,
     dashboard_url: str = "",
     format: str = "full",
+    custom_message: str = "",
 ) -> str:
     # format="full" is the only implemented format.
     # format="flash" reserved for future 1-screen executive summary.
@@ -1029,6 +1030,16 @@ def build_weekly_digest_html(
     # --- PART 1: Overview ---
     # 1. Header
     sections.append(_render_header(week_ending, data_as_of))
+
+    # Custom message (optional)
+    if custom_message:
+        sections.append(
+            f'<tr><td style="padding:12px 30px 0;">'
+            f'<div style="padding:10px 14px;background:#eef3f8;border-left:3px solid {_BLUE};'
+            f'border-radius:4px;font-size:13px;color:{_NAVY};">'
+            f'{_esc(custom_message)}</div>'
+            f'</td></tr>'
+        )
 
     # 2. Filing Activity (top of email)
     sections.append(_render_filing_activity(filing))
@@ -1144,6 +1155,7 @@ def send_weekly_digest(
     db_session,
     dashboard_url: str = "",
     format: str = "full",
+    custom_message: str = "",
 ) -> bool:
     recipients = _load_recipients()
     private = _load_private_recipients()
@@ -1151,7 +1163,8 @@ def send_weekly_digest(
         log.warning("Weekly digest: no recipients configured")
         return False
 
-    html_body = build_weekly_digest_html(db_session, dashboard_url, format=format)
+    html_body = build_weekly_digest_html(db_session, dashboard_url, format=format,
+                                          custom_message=custom_message)
     today = datetime.now()
     week_ending = today.strftime("%B %d, %Y")
     subject = f"REX ETF Weekly Report - Week of {week_ending}"

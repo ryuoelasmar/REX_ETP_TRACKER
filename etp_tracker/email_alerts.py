@@ -154,10 +154,21 @@ def _dashboard_cta(dash_link: str) -> str:
     )
 
 
-def _render_daily_html(data: dict, dashboard_url: str = "") -> str:
+def _render_daily_html(data: dict, dashboard_url: str = "", custom_message: str = "") -> str:
     """Render the daily brief HTML from pre-gathered data."""
     today = datetime.now()
     dash_link = _esc(dashboard_url) if dashboard_url else ""
+
+    # --- Custom message ---
+    msg_html = ""
+    if custom_message:
+        msg_html = (
+            f'<tr><td style="padding:12px 30px 0;">'
+            f'<div style="padding:10px 14px;background:#eef3f8;border-left:3px solid {_BLUE};'
+            f'border-radius:4px;font-size:13px;color:{_NAVY};">'
+            f'{_esc(custom_message)}</div>'
+            f'</td></tr>'
+        )
 
     # --- Header ---
     header = f"""
@@ -419,7 +430,7 @@ def _render_daily_html(data: dict, dashboard_url: str = "") -> str:
 </td></tr>"""
 
     # --- Assemble (KPIs at top) ---
-    body = header + scorecard + launches_section + filings_section + pending_section + cta_section + footer
+    body = header + msg_html + scorecard + launches_section + filings_section + pending_section + cta_section + footer
 
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
@@ -563,10 +574,11 @@ def build_digest_html_from_db(
     db_session,
     dashboard_url: str = "",
     since_date: str | None = None,
+    custom_message: str = "",
 ) -> str:
     """Build daily brief from SQLite database."""
     data = _gather_daily_data(db_session, since_date)
-    return _render_daily_html(data, dashboard_url)
+    return _render_daily_html(data, dashboard_url, custom_message=custom_message)
 
 
 def _send_html_digest(html_body: str, recipients: list[str]) -> bool:
@@ -609,13 +621,15 @@ def send_digest_from_db(
     db_session,
     dashboard_url: str = "",
     since_date: str | None = None,
+    custom_message: str = "",
 ) -> bool:
     """Build digest from database and send. Always works without CSV files."""
     recipients = _load_recipients()
     private = _load_private_recipients()
     if not recipients and not private:
         return False
-    html_body = build_digest_html_from_db(db_session, dashboard_url, since_date)
+    html_body = build_digest_html_from_db(db_session, dashboard_url, since_date,
+                                           custom_message=custom_message)
     ok = True
     if recipients:
         ok = _send_html_digest(html_body, recipients)
