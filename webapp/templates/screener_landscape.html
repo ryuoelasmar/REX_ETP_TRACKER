@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Competitive Filing Landscape - REX Financial{% endblock %}
+
+{% block content %}
+<div class="header">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+    <div>
+      <h1>Competitive Filing Landscape</h1>
+      <div class="date">3x / 4x / 5x SEC Filing Matrix | Source: EDGAR | {{ generated_at }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== KPI ROW ==================== -->
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="num">{{ kpis.count_3x }}</div>
+    <div class="label">3x Names</div>
+  </div>
+  <div class="kpi">
+    <div class="num">{{ kpis.count_4x }}</div>
+    <div class="label">4x Names</div>
+  </div>
+  <div class="kpi">
+    <div class="num">{{ kpis.count_5x }}</div>
+    <div class="label">5x Names</div>
+  </div>
+  <div class="kpi">
+    <div class="num" style="color:var(--green);">{{ kpis.rex_exclusive }}</div>
+    <div class="label">REX Exclusive</div>
+  </div>
+  <div class="kpi">
+    <div class="num">{{ kpis.total_names }}</div>
+    <div class="label">Unique Names</div>
+  </div>
+</div>
+
+<!-- ==================== FILTERS ==================== -->
+<div class="filter-bar" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:var(--sp-5);">
+  <a href="/screener/?leverage=all&view={{ view }}&q={{ q }}" class="pill{% if leverage == 'all' %} active{% endif %}">All</a>
+  <a href="/screener/?leverage=3x&view={{ view }}&q={{ q }}" class="pill{% if leverage == '3x' %} active{% endif %}">3x</a>
+  <a href="/screener/?leverage=4x&view={{ view }}&q={{ q }}" class="pill{% if leverage == '4x' %} active{% endif %}">4x</a>
+  <a href="/screener/?leverage=5x&view={{ view }}&q={{ q }}" class="pill{% if leverage == '5x' %} active{% endif %}">5x</a>
+  <span style="width:1px; height:20px; background:var(--border); margin:0 4px;"></span>
+  <a href="/screener/?leverage={{ leverage }}&view=all&q={{ q }}" class="pill{% if view == 'all' %} active{% endif %}">All Names</a>
+  <a href="/screener/?leverage={{ leverage }}&view=rex-only&q={{ q }}" class="pill{% if view == 'rex-only' %} active{% endif %}">REX Only</a>
+  <a href="/screener/?leverage={{ leverage }}&view=missing&q={{ q }}" class="pill{% if view == 'missing' %} active{% endif %}">Missing</a>
+  <span style="width:1px; height:20px; background:var(--border); margin:0 4px;"></span>
+  <form method="get" action="/screener/" style="display:flex; gap:4px; margin:0;">
+    <input type="hidden" name="leverage" value="{{ leverage }}">
+    <input type="hidden" name="view" value="{{ view }}">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search underlier..."
+           style="padding:5px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; width:160px; background:var(--surface-1); color:var(--text-primary);">
+    <button type="submit" class="pill active" style="padding:5px 12px; cursor:pointer;">Go</button>
+  </form>
+  {% if q %}
+  <a href="/screener/?leverage={{ leverage }}&view={{ view }}" class="pill" style="color:var(--red); border-color:var(--red);">Clear</a>
+  {% endif %}
+</div>
+
+<!-- ==================== MATRIX TABLES ==================== -->
+{% for lev in display_leverages %}
+{% set matrix = filtered_matrices[lev] %}
+{% set issuers = active_issuers.get(lev, []) %}
+{% if matrix %}
+<div class="section-header" style="{% if not loop.first %}margin-top:30px;{% endif %}">
+  <h2>{{ lev }} Filing Matrix</h2>
+  <span class="badge">{{ matrix|length }} names / {{ issuers|length }} issuers</span>
+</div>
+<div class="table-scroll-wrap">
+<table id="matrix{{ lev }}">
+  <thead>
+    <tr>
+      <th style="min-width:160px;" onclick="sortTable('matrix{{ lev }}',0)">Underlier</th>
+      {% for iss in issuers %}
+      <th style="text-align:center; min-width:80px;{% if iss in ('T-REX', 'REX') %} background:var(--green); color:white;{% endif %}" onclick="sortTable('matrix{{ lev }}',{{ loop.index }})">{{ iss }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for underlier in matrix.keys()|sort %}
+    {% set issuers_map = matrix[underlier] %}
+    <tr>
+      <td style="font-weight:600;">{{ underlier }}</td>
+      {% for iss in issuers %}
+      <td style="text-align:center;">
+        {% if iss in issuers_map %}
+        <span style="font-weight:700; {% if iss in ('T-REX', 'REX') %}color:var(--green);{% else %}color:var(--blue);{% endif %}">X</span>
+        {% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endfor %}
+
+{% if not any_results %}
+<div class="what-changed" style="margin-top:20px;">
+  <h2>No results</h2>
+  <p>No names match your current filters. Try broadening your search.</p>
+</div>
+{% endif %}
+
+<!-- ==================== ISSUER SCORECARD ==================== -->
+<div class="section-header" style="margin-top:30px;">
+  <h2>Issuer Scorecard</h2>
+  <span class="badge">{{ issuer_scorecard|length }} issuers</span>
+</div>
+<div class="table-scroll-wrap">
+<table id="scorecardTable">
+  <thead>
+    <tr>
+      <th onclick="sortTable('scorecardTable',0)">Issuer</th>
+      <th onclick="sortTable('scorecardTable',1)" style="text-align:center;">3x</th>
+      <th onclick="sortTable('scorecardTable',2)" style="text-align:center;">4x</th>
+      <th onclick="sortTable('scorecardTable',3)" style="text-align:center;">5x</th>
+      <th onclick="sortTable('scorecardTable',4)" style="text-align:center;">Total</th>
+      <th onclick="sortTable('scorecardTable',5)" style="text-align:center;">Exclusive</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in issuer_scorecard %}
+    <tr{% if s.is_rex %} style="background:var(--green-bg);"{% endif %}>
+      <td style="font-weight:{% if s.is_rex %}700{% else %}500{% endif %};">{{ s.issuer }}</td>
+      <td style="text-align:center;">{{ s.c3 }}</td>
+      <td style="text-align:center;">{{ s.c4 }}</td>
+      <td style="text-align:center;">{{ s.c5 }}</td>
+      <td style="text-align:center; font-weight:600;">{{ s.total }}</td>
+      <td style="text-align:center;">{{ s.exclusive }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<!-- ==================== BLOOMBERG ANALYSIS ACCORDION ==================== -->
+<div class="trust-block" style="margin-top:30px;">
+  <div class="trust-header" onclick="toggleTrust(this)">
+    <h3>Bloomberg Analysis Tools</h3>
+    <span class="arrow">&#9654;</span>
+  </div>
+  <div class="trust-body" style="padding:16px;">
+    {% if bloomberg_available %}
+    <p style="font-size:13px; color:var(--gray); margin-bottom:12px;">
+      Bloomberg-powered analysis using data from <code>data/SCREENER/data.xlsx</code>.
+    </p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="/screener/3x-analysis" class="pill">3x Analysis</a>
+      <a href="/screener/4x" class="pill">4x Candidates</a>
+      <a href="/screener/market" class="pill">Market Landscape</a>
+      <a href="/screener/rex-funds" class="pill">REX Portfolio</a>
+      <a href="/screener/risk" class="pill">Risk Watchlist</a>
+      <a href="/screener/evaluate" class="pill">Evaluate</a>
+    </div>
+    {% else %}
+    <div style="background:var(--orange-bg); border-left:4px solid var(--orange); padding:10px 14px; border-radius:0 6px 6px 0; font-size:13px;">
+      <strong>No Bloomberg data available.</strong> Place <code>data.xlsx</code> in <code>data/SCREENER/</code> and score from the <a href="/admin/">Admin panel</a>.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

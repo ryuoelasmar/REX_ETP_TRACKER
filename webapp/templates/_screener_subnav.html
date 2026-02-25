@@ -1,0 +1,12 @@
+{# Bloomberg Analysis sub-navigation for screener pages.
+   Usage: {% include "_screener_subnav.html" %}
+   Requires `tab` variable in template context.
+#}
+<div class="sub-nav">
+  <a href="/screener/3x-analysis" class="pill{% if tab == 'recommendations' %} active{% endif %}">3x Analysis</a>
+  <a href="/screener/4x" class="pill{% if tab == '4x' %} active{% endif %}">4x Candidates</a>
+  <a href="/screener/market" class="pill{% if tab == 'market' %} active{% endif %}">Market Landscape</a>
+  <a href="/screener/rex-funds" class="pill{% if tab == 'rex' %} active{% endif %}">REX Portfolio</a>
+  <a href="/screener/risk" class="pill{% if tab == 'risk' %} active{% endif %}">Risk Watchlist</a>
+  <a href="/screener/evaluate" class="pill{% if tab == 'evaluate' %} active{% endif %}">Evaluate</a>
+</div>

@@ -1,4 +1,4 @@
-"""Screener router - 3x/4x Filing Recommendations + ETF Launch Screener."""
+"""Screener router - Filing Landscape + Bloomberg Analysis + Evaluator."""
 from __future__ import annotations
 
 import io
@@ -18,6 +18,8 @@ from webapp.models import ScreenerResult, ScreenerUpload
 router = APIRouter(prefix="/screener", tags=["screener"])
 templates = Jinja2Templates(directory="webapp/templates")
 log = logging.getLogger(__name__)
+
+REX_ISSUERS = {"T-REX", "REX"}
 
 
 # ---------------------------------------------------------------------------
@@ -57,12 +59,79 @@ def _cache_warming() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# 3x Recommendations (landing page)
+# Filing Landscape (new landing page - SEC data only, no Bloomberg)
 # ---------------------------------------------------------------------------
 
 @router.get("/")
+def screener_landing(
+    request: Request,
+    db: Session = Depends(get_db),
+    leverage: str = Query("all"),
+    view: str = Query("all"),
+    q: str = Query(""),
+):
+    """Competitive Filing Landscape - the main screener landing page."""
+    from webapp.services.filing_landscape import build_filing_landscape
+
+    data = build_filing_landscape(db)
+    matrices = data["matrices"]
+
+    # Determine which leverage levels to show
+    if leverage in ("3x", "4x", "5x"):
+        display_leverages = [leverage]
+    else:
+        display_leverages = ["3x", "4x", "5x"]
+
+    # Apply view filter (rex-only / missing)
+    filtered_matrices = {}
+    for lev in display_leverages:
+        matrix = dict(matrices.get(lev, {}))
+        if view == "rex-only":
+            matrix = {
+                u: iss_map for u, iss_map in matrix.items()
+                if len(iss_map) == 1 and any(i in REX_ISSUERS for i in iss_map)
+            }
+        elif view == "missing":
+            matrix = {
+                u: iss_map for u, iss_map in matrix.items()
+                if not any(i in REX_ISSUERS for i in iss_map)
+            }
+
+        # Apply search filter
+        if q:
+            q_upper = q.upper()
+            matrix = {
+                u: iss_map for u, iss_map in matrix.items()
+                if q_upper in u.upper()
+            }
+
+        filtered_matrices[lev] = matrix
+
+    any_results = any(bool(m) for m in filtered_matrices.values())
+
+    return templates.TemplateResponse("screener_landscape.html", {
+        "request": request,
+        "kpis": data["kpis"],
+        "filtered_matrices": filtered_matrices,
+        "active_issuers": data["active_issuers"],
+        "issuer_scorecard": data["issuer_scorecard"],
+        "generated_at": data["generated_at"],
+        "bloomberg_available": _data_available(),
+        "leverage": leverage,
+        "view": view,
+        "q": q,
+        "display_leverages": display_leverages,
+        "any_results": any_results,
+    })
+
+
+# ---------------------------------------------------------------------------
+# 3x Recommendations (moved from / to /3x-analysis)
+# ---------------------------------------------------------------------------
+
+@router.get("/3x-analysis")
 def screener_3x_recommendations(request: Request):
-    """3x Filing Recommendations - the exec landing page."""
+    """3x Filing Recommendations - Bloomberg-powered analysis."""
     analysis = _get_3x_data()
 
     if analysis is None:
