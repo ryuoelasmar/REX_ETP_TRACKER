@@ -142,6 +142,34 @@ def _rex_badge() -> str:
     )
 
 
+import re as _re
+
+_FUND_PATTERNS = {
+    "leveraged": _re.compile(
+        r"2X|3X|4X|LEVERAG|BULL|BEAR|INVERSE|T-REX|DAILY TARGET",
+        _re.IGNORECASE,
+    ),
+    "income": _re.compile(
+        r"INCOME|YIELD|DIVIDEND|COVERED.?CALL|OPTION.?INCOME|AUTOCALL|PREMIUM",
+        _re.IGNORECASE,
+    ),
+    "crypto": _re.compile(
+        r"BTC|BITCOIN|ETHER|ETH(?:EREUM)?|CRYPTO|BONK|TRUMP|SOLANA|DOGE|XRP",
+        _re.IGNORECASE,
+    ),
+}
+
+
+def _classify_fund(series_name: str) -> str:
+    """Classify a fund by relevance to REX's business."""
+    if not series_name:
+        return "other"
+    for category, pattern in _FUND_PATTERNS.items():
+        if pattern.search(series_name):
+            return category
+    return "other"
+
+
 def _dashboard_cta(dash_link: str) -> str:
     return (
         f'<tr><td style="padding:20px 30px;" align="center">'
@@ -283,47 +311,89 @@ def _render_daily_html(data: dict, dashboard_url: str = "", custom_message: str 
   </div>
 </td></tr>"""
 
-    # --- New Filings ---
+    # --- New Filings (relevance-sorted, fund-level detail) ---
     filing_groups = data.get("filing_groups", [])
     if filing_groups:
-        filing_rows = []
-        for fg in filing_groups[:10]:
+        _row_base = (
+            f"padding:8px 10px;border-bottom:1px solid {_BORDER};"
+            f"font-size:12px;color:{_NAVY};"
+        )
+        _row_rex = (
+            f"padding:8px 10px;border-bottom:1px solid {_BORDER};"
+            f"font-size:12px;color:{_NAVY};"
+            f"background:#eef3f8;"
+        )
+        filing_items = []
+        for fg in filing_groups[:8]:
             trust = _esc(fg.get("trust_name", ""))
-            if len(trust) > 30:
-                trust = trust[:27] + "..."
+            if len(trust) > 35:
+                trust = trust[:32] + "..."
             form = _esc(fg.get("form", ""))
-            count = fg.get("fund_count", 0)
-            filing_date = _esc(fg.get("filing_date", ""))
             is_rex = fg.get("is_rex", False)
-            trust_html = trust
+            total = fg.get("total_funds", 0)
+            relevant = fg.get("relevant_funds", [])
+            overflow = fg.get("relevant_overflow", 0)
+            other_count = fg.get("other_count", 0)
+            cats = fg.get("categories", {})
+            row_style = _row_rex if is_rex else _row_base
+
+            # Build the trust label with optional REX badge
+            trust_label = trust
             if is_rex:
-                trust_html = (
+                trust_label = (
                     f'{trust} <span style="background:{_BLUE};color:{_WHITE};'
-                    f'padding:1px 5px;border-radius:3px;font-size:8px;'
+                    f'padding:1px 6px;border-radius:3px;font-size:9px;'
                     f'font-weight:700;vertical-align:middle;">REX</span>'
                 )
-            filing_rows.append(
-                f'<tr>'
-                f'<td style="padding:5px 8px;border-bottom:1px solid {_BORDER};'
-                f'font-size:11px;">{trust_html}</td>'
-                f'<td style="padding:5px 8px;border-bottom:1px solid {_BORDER};'
-                f'font-size:11px;font-weight:600;text-align:center;">{form}</td>'
-                f'<td style="padding:5px 8px;border-bottom:1px solid {_BORDER};'
-                f'font-size:11px;text-align:center;">{count}</td>'
-                f'<td style="padding:5px 8px;border-bottom:1px solid {_BORDER};'
-                f'font-size:10px;text-align:right;color:{_GRAY};">{filing_date}</td>'
-                f'</tr>'
-            )
+
+            # Build the summary line
+            if is_rex or relevant:
+                # Show fund names for REX / relevant trusts
+                fund_names = [_esc(f) for f in relevant]
+                summary_parts = []
+                if fund_names:
+                    summary_parts.append(", ".join(fund_names))
+                if overflow > 0:
+                    summary_parts.append(f"+{overflow} more relevant")
+                if other_count > 0:
+                    summary_parts.append(f"+{other_count} more")
+                summary = "; ".join(summary_parts) if summary_parts else f"{total} funds filed"
+
+                # Category tags
+                cat_tags = ""
+                for cat, cnt in sorted(cats.items(), key=lambda x: x[1], reverse=True):
+                    cat_color = {"leveraged": "#e74c3c", "income": "#27ae60", "crypto": "#f39c12"}.get(cat, _GRAY)
+                    cat_tags += (
+                        f' <span style="display:inline-block;padding:1px 5px;border-radius:3px;'
+                        f'font-size:9px;color:{_WHITE};background:{cat_color};'
+                        f'margin-left:2px;">{cnt} {cat}</span>'
+                    )
+
+                filing_items.append(
+                    f'<tr><td style="{row_style}">'
+                    f'<div style="font-weight:600;margin-bottom:2px;">'
+                    f'{trust_label} <span style="font-weight:400;color:{_GRAY};font-size:10px;">{form}</span>'
+                    f'{cat_tags}</div>'
+                    f'<div style="font-size:11px;color:#555;">{summary}</div>'
+                    f'</td></tr>'
+                )
+            else:
+                # Non-relevant trust — collapsed single line
+                filing_items.append(
+                    f'<tr><td style="{row_style}">'
+                    f'{trust_label} '
+                    f'<span style="color:{_GRAY};font-size:10px;">{form}</span> '
+                    f'<span style="color:{_GRAY};font-size:11px;">'
+                    f'&ndash; {total} funds (+{total} more)</span>'
+                    f'</td></tr>'
+                )
+
         more_html = ""
-        if len(filing_groups) > 10:
+        if len(filing_groups) > 8:
             more_html = (
                 f'<div style="font-size:10px;color:{_GRAY};margin-top:4px;">'
-                f'+ {len(filing_groups) - 10} more trusts filed</div>'
+                f'+ {len(filing_groups) - 8} more trusts filed</div>'
             )
-        _col = (
-            f"padding:4px 8px;font-size:9px;color:{_GRAY};text-transform:uppercase;"
-            f"border-bottom:1px solid {_BORDER};"
-        )
         filings_section = f"""
 <tr><td style="padding:15px 30px 10px;">
   <div style="font-size:16px;font-weight:700;color:{_NAVY};margin:0 0 8px 0;
@@ -331,13 +401,7 @@ def _render_daily_html(data: dict, dashboard_url: str = "", custom_message: str 
     New Filings
   </div>
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
-    <tr>
-      <td style="{_col}">Trust</td>
-      <td style="{_col}text-align:center;">Form</td>
-      <td style="{_col}text-align:center;">Funds</td>
-      <td style="{_col}text-align:right;">Filed</td>
-    </tr>
-    {''.join(filing_rows)}
+    {''.join(filing_items)}
   </table>
   {more_html}
 </td></tr>"""
@@ -498,30 +562,74 @@ def _gather_daily_data(db_session, since_date: str | None = None) -> dict:
 
     # Bloomberg-only: no DB fallback (SEC effective dates are not launch dates)
 
-    # --- New filings: 485 forms, REX trusts first, then by date ---
+    # --- New filings: fund-level detail with relevance classification ---
     filing_rows = db_session.execute(
         select(
             Trust.name.label("trust_name"), Trust.is_rex,
             Filing.form, Filing.filing_date,
-            func.count(FundExtraction.id).label("fund_count"),
+            FundExtraction.series_name,
         )
         .join(Trust, Trust.id == Filing.trust_id)
         .outerjoin(FundExtraction, FundExtraction.filing_id == Filing.id)
         .where(Filing.filing_date >= since_dt)
         .where(Filing.form.ilike("485%"))
-        .group_by(Trust.name, Trust.is_rex, Filing.form, Filing.filing_date)
         .order_by(Trust.is_rex.desc(), Filing.filing_date.desc())
     ).all()
 
-    filing_groups = []
+    # Group by trust/form/date, classify each fund
+    from collections import defaultdict
+    _fg_map: dict[tuple, dict] = {}
     for r in filing_rows:
+        key = (r.trust_name or "", r.form or "", str(r.filing_date) if r.filing_date else "")
+        if key not in _fg_map:
+            _fg_map[key] = {
+                "trust_name": key[0],
+                "form": key[1],
+                "filing_date": key[2],
+                "is_rex": r.is_rex,
+                "funds": [],
+            }
+        sname = (r.series_name or "").strip()
+        if sname:
+            _fg_map[key]["funds"].append(sname)
+
+    filing_groups = []
+    for g in _fg_map.values():
+        funds = g["funds"]
+        # Deduplicate fund names (same series can appear via multiple classes)
+        seen = set()
+        unique_funds = []
+        for f in funds:
+            fl = f.upper()
+            if fl not in seen:
+                seen.add(fl)
+                unique_funds.append(f)
+
+        categories: dict[str, list[str]] = defaultdict(list)
+        for f in unique_funds:
+            categories[_classify_fund(f)].append(f)
+
+        relevant = categories.get("leveraged", []) + categories.get("income", []) + categories.get("crypto", [])
+        other_count = len(categories.get("other", []))
+        cat_counts = {c: len(names) for c, names in categories.items() if names and c != "other"}
+
+        # Sort score: REX=1000, then count of relevant funds
+        sort_score = (1000 if g["is_rex"] else 0) + len(relevant)
+
         filing_groups.append({
-            "trust_name": r.trust_name or "",
-            "form": r.form or "",
-            "fund_count": r.fund_count or 0,
-            "filing_date": str(r.filing_date) if r.filing_date else "",
-            "is_rex": r.is_rex,
+            "trust_name": g["trust_name"],
+            "form": g["form"],
+            "filing_date": g["filing_date"],
+            "is_rex": g["is_rex"],
+            "total_funds": len(unique_funds),
+            "relevant_funds": relevant[:5],
+            "relevant_overflow": max(0, len(relevant) - 5),
+            "other_count": other_count,
+            "categories": cat_counts,
+            "_sort": sort_score,
         })
+
+    filing_groups.sort(key=lambda x: x["_sort"], reverse=True)
 
     # --- Upcoming launches: PENDING with an actual expected date (no TBD) ---
     pending_rows = db_session.execute(
