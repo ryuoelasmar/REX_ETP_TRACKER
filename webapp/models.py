@@ -494,3 +494,26 @@ class MktMarketStatus(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(String(100))
+
+
+# --- Admin Request Models ---
+
+class TrustRequest(Base):
+    __tablename__ = "trust_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cik: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING", nullable=False, index=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class DigestSubscriber(Base):
+    __tablename__ = "digest_subscribers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING", nullable=False, index=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

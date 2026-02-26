@@ -4,23 +4,22 @@ Users can search and submit monitoring requests. Admin adds trusts from local sy
 """
 from __future__ import annotations
 
-from datetime import datetime
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from webapp.dependencies import get_db
-from webapp.models import Trust
+from webapp.models import Trust, TrustRequest
 from webapp.services.sec_search import search_trusts, verify_cik
 
 router = APIRouter()
 templates = Jinja2Templates(directory="webapp/templates")
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-REQUESTS_FILE = PROJECT_ROOT / "config" / "trust_requests.txt"
+
+def normalize_cik(cik: str) -> str:
+    """Strip leading zeros for consistent CIK comparison."""
+    return str(int(cik)) if cik and cik.strip().isdigit() else cik.strip()
 
 
 @router.get("/search/")
@@ -34,7 +33,7 @@ def search_page(request: Request, q: str = "", db: Session = Depends(get_db)):
 
         # Mark which CIKs we already monitor
         existing_ciks = set(
-            row[0] for row in db.execute(select(Trust.cik)).all()
+            normalize_cik(row[0]) for row in db.execute(select(Trust.cik)).all()
         )
 
     return templates.TemplateResponse("search.html", {
@@ -58,8 +57,9 @@ def verify_page(request: Request, cik: str, db: Session = Depends(get_db)):
         })
 
     # Check if already monitored
+    norm_cik = normalize_cik(cik)
     existing = db.execute(
-        select(Trust).where(Trust.cik == cik)
+        select(Trust).where(Trust.cik == norm_cik)
     ).scalar_one_or_none()
 
     return templates.TemplateResponse("search_verify.html", {
@@ -82,9 +82,11 @@ def request_trust(request: Request, cik: str = Form(""), name: str = Form(""), d
             "submitted": False,
         })
 
+    norm_cik = normalize_cik(cik)
+
     # Check if already monitored
     existing = db.execute(
-        select(Trust).where(Trust.cik == cik)
+        select(Trust).where(Trust.cik == norm_cik)
     ).scalar_one_or_none()
 
     if existing:
@@ -96,11 +98,13 @@ def request_trust(request: Request, cik: str = Form(""), name: str = Form(""), d
             "submitted": False,
         })
 
-    # Log the request to file for admin review
-    timestamp = datetime.now().isoformat(timespec="seconds")
-    line = f"PENDING|{cik}|{name}|{timestamp}\n"
-    with open(REQUESTS_FILE, "a", encoding="utf-8") as f:
-        f.write(line)
+    # Check for existing PENDING request (dedup)
+    existing_req = db.query(TrustRequest).filter(
+        TrustRequest.cik == norm_cik, TrustRequest.status == "PENDING"
+    ).first()
+    if not existing_req:
+        db.add(TrustRequest(cik=norm_cik, name=name))
+        db.commit()
 
     # Re-fetch details for the confirmation page
     details = verify_cik(cik)

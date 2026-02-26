@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from webapp.dependencies import get_db
-from webapp.models import Trust, FundStatus, AnalysisResult
+from webapp.models import Trust, FundStatus, AnalysisResult, TrustRequest, DigestSubscriber
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory="webapp/templates")
@@ -26,96 +26,18 @@ log = logging.getLogger(__name__)
 
 ADMIN_PASSWORD = "ryu123"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-REQUESTS_FILE = PROJECT_ROOT / "config" / "trust_requests.txt"
-SUBSCRIBERS_FILE = PROJECT_ROOT / "config" / "digest_subscribers.txt"
 RECIPIENTS_FILE = PROJECT_ROOT / "config" / "email_recipients.txt"
 OUTPUT_DIR = PROJECT_ROOT / "outputs"
+
+
+def normalize_cik(cik: str) -> str:
+    """Strip leading zeros for consistent CIK comparison."""
+    return str(int(cik)) if cik and cik.strip().isdigit() else cik.strip()
 
 
 def _is_admin(request: Request) -> bool:
     """Check if current session is admin-authenticated."""
     return request.session.get("is_admin", False)
-
-
-def _read_requests() -> list[dict]:
-    """Read trust_requests.txt and parse into list of dicts."""
-    if not REQUESTS_FILE.exists():
-        return []
-    requests = []
-    for line in REQUESTS_FILE.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        parts = line.split("|")
-        if len(parts) >= 4:
-            requests.append({
-                "status": parts[0],
-                "cik": parts[1],
-                "name": parts[2],
-                "timestamp": parts[3],
-            })
-    return requests
-
-
-def _update_request_status(cik: str, new_status: str):
-    """Update a request's status in trust_requests.txt."""
-    if not REQUESTS_FILE.exists():
-        return
-    lines = REQUESTS_FILE.read_text(encoding="utf-8").splitlines()
-    updated = []
-    for line in lines:
-        if f"|{cik}|" in line and line.startswith("PENDING"):
-            parts = line.split("|")
-            parts[0] = new_status
-            updated.append("|".join(parts))
-        else:
-            updated.append(line)
-    REQUESTS_FILE.write_text("\n".join(updated) + "\n", encoding="utf-8")
-
-
-def _read_subscribers() -> list[dict]:
-    """Read digest_subscribers.txt and return pending entries."""
-    if not SUBSCRIBERS_FILE.exists():
-        return []
-    subs = []
-    for line in SUBSCRIBERS_FILE.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        parts = line.split("|")
-        if len(parts) >= 3:
-            subs.append({"status": parts[0], "email": parts[1], "timestamp": parts[2]})
-    return [s for s in subs if s["status"] == "PENDING"]
-
-
-def _update_subscriber_status(email: str, new_status: str):
-    """Update a subscriber's status in digest_subscribers.txt."""
-    if not SUBSCRIBERS_FILE.exists():
-        return
-    lines = SUBSCRIBERS_FILE.read_text(encoding="utf-8").splitlines()
-    updated = []
-    for line in lines:
-        if f"|{email}|" in line and line.startswith("PENDING"):
-            parts = line.split("|")
-            parts[0] = new_status
-            updated.append("|".join(parts))
-        else:
-            updated.append(line)
-    SUBSCRIBERS_FILE.write_text("\n".join(updated) + "\n", encoding="utf-8")
-
-
-def _add_to_recipients(email: str):
-    """Append email to email_recipients.txt if not already present."""
-    existing = set()
-    if RECIPIENTS_FILE.exists():
-        existing = {
-            line.strip().lower()
-            for line in RECIPIENTS_FILE.read_text(encoding="utf-8").splitlines()
-            if line.strip() and not line.startswith("#")
-        }
-    if email.lower() not in existing:
-        with RECIPIENTS_FILE.open("a", encoding="utf-8") as f:
-            f.write(email.strip() + "\n")
 
 
 # --- Login / Logout ---
@@ -129,12 +51,22 @@ def admin_page(request: Request, db: Session = Depends(get_db)):
             "error": None,
         })
 
-    # Trust requests
-    all_requests = _read_requests()
-    pending_requests = [r for r in all_requests if r["status"] == "PENDING"]
+    # Trust requests from DB
+    all_requests = db.query(TrustRequest).order_by(TrustRequest.requested_at.desc()).all()
+    pending_requests = [r for r in all_requests if r.status == "PENDING"]
 
-    # Digest subscribers
-    pending_subscribers = _read_subscribers()
+    # Check which pending CIKs are already tracked
+    tracked_ciks = set()
+    if pending_requests:
+        tracked_ciks = {
+            normalize_cik(row[0])
+            for row in db.execute(select(Trust.cik)).all()
+        }
+
+    # Digest subscribers from DB
+    pending_subscribers = db.query(DigestSubscriber).filter(
+        DigestSubscriber.status == "PENDING"
+    ).order_by(DigestSubscriber.requested_at.desc()).all()
 
     # AI analysis status
     from webapp.services.claude_service import is_configured as ai_configured
@@ -149,6 +81,7 @@ def admin_page(request: Request, db: Session = Depends(get_db)):
         "pending_requests": pending_requests,
         "all_requests": all_requests,
         "pending_subscribers": pending_subscribers,
+        "tracked_ciks": tracked_ciks,
         "ai_configured": ai_configured(),
         "ai_usage_today": ai_usage_today,
     })
@@ -179,18 +112,21 @@ def admin_logout(request: Request):
 @router.post("/requests/approve")
 def approve_request(
     request: Request,
-    cik: str = Form(""),
-    name: str = Form(""),
+    request_id: int = Form(0),
     db: Session = Depends(get_db),
 ):
     """Approve a trust monitoring request - adds to DB for next pipeline run."""
     if not _is_admin(request):
         return RedirectResponse("/admin/", status_code=302)
 
-    if not cik or not name:
+    trust_req = db.query(TrustRequest).filter(TrustRequest.id == request_id).first()
+    if not trust_req:
         return RedirectResponse("/admin/?error=missing_data", status_code=303)
 
-    # Check if already exists
+    cik = normalize_cik(trust_req.cik)
+    name = trust_req.name
+
+    # Check if trust already exists (normalized CIK comparison)
     existing = db.execute(
         select(Trust).where(Trust.cik == cik)
     ).scalar_one_or_none()
@@ -205,7 +141,11 @@ def approve_request(
             is_active=True,
             added_by="ADMIN",
         ))
-        db.commit()
+
+    # Mark request as approved
+    trust_req.status = "APPROVED"
+    trust_req.resolved_at = datetime.utcnow()
+    db.commit()
 
     # Also add to trusts.py registry so pipeline always picks it up
     from urllib.parse import quote
@@ -215,19 +155,27 @@ def approve_request(
         add_trust(cik, name)
     except Exception as e:
         log.warning("Could not write to trusts.py (read-only on Render): %s", e)
-        detail = "Trust added to database (trusts.py update skipped — read-only filesystem on Render)"
+        detail = "Trust added to database (trusts.py update skipped -- read-only filesystem on Render)"
 
-    _update_request_status(cik, "APPROVED")
     return RedirectResponse(f"/admin/?approved=1&detail={quote(detail)}", status_code=303)
 
 
 @router.post("/requests/reject")
-def reject_request(request: Request, cik: str = Form("")):
+def reject_request(
+    request: Request,
+    request_id: int = Form(0),
+    db: Session = Depends(get_db),
+):
     """Reject a trust monitoring request."""
     if not _is_admin(request):
         return RedirectResponse("/admin/", status_code=302)
 
-    _update_request_status(cik, "REJECTED")
+    trust_req = db.query(TrustRequest).filter(TrustRequest.id == request_id).first()
+    if trust_req:
+        trust_req.status = "REJECTED"
+        trust_req.resolved_at = datetime.utcnow()
+        db.commit()
+
     return RedirectResponse("/admin/?rejected=1", status_code=303)
 
 
@@ -301,29 +249,99 @@ def preview_weekly(request: Request, db: Session = Depends(get_db)):
     return HTMLResponse(content=html)
 
 
+@router.post("/digest/send-test")
+def send_test_digest(request: Request, db: Session = Depends(get_db)):
+    """Send daily brief to relasmar@rexfin.com ONLY (test send)."""
+    if not _is_admin(request):
+        return RedirectResponse("/admin/", status_code=302)
+
+    try:
+        from etp_tracker.email_alerts import build_digest_html_from_db, _send_html_digest
+        dashboard_url = str(request.base_url).rstrip("/")
+        html = build_digest_html_from_db(db, dashboard_url=dashboard_url)
+        ok = _send_html_digest(html, ["relasmar@rexfin.com"])
+
+        if ok:
+            return RedirectResponse("/admin/?digest=test_sent", status_code=303)
+        return RedirectResponse("/admin/?digest=test_fail", status_code=303)
+    except Exception as e:
+        from urllib.parse import quote
+        log.error("Test daily send failed: %s", e)
+        return RedirectResponse(f"/admin/?digest=error&msg={quote(str(e)[:100])}", status_code=303)
+
+
+@router.post("/digest/send-test-weekly")
+def send_test_weekly(request: Request, db: Session = Depends(get_db)):
+    """Send weekly report to relasmar@rexfin.com ONLY (test send)."""
+    if not _is_admin(request):
+        return RedirectResponse("/admin/", status_code=302)
+
+    try:
+        from etp_tracker.weekly_digest import build_weekly_digest_html, _send_weekly_html
+        dashboard_url = str(request.base_url).rstrip("/")
+        html = build_weekly_digest_html(db, dashboard_url=dashboard_url)
+        ok = _send_weekly_html(
+            f"REX ETF Weekly Report - {datetime.now().strftime('%B %d, %Y')}",
+            html, ["relasmar@rexfin.com"]
+        )
+
+        if ok:
+            return RedirectResponse("/admin/?digest=test_weekly_sent", status_code=303)
+        return RedirectResponse("/admin/?digest=test_weekly_fail", status_code=303)
+    except Exception as e:
+        from urllib.parse import quote
+        log.error("Test weekly send failed: %s", e)
+        return RedirectResponse(f"/admin/?digest=error&msg={quote(str(e)[:100])}", status_code=303)
+
+
 # --- Subscriber Management ---
 
 @router.post("/subscribers/approve")
-def approve_subscriber(request: Request, email: str = Form("")):
+def approve_subscriber(
+    request: Request,
+    subscriber_id: int = Form(0),
+    db: Session = Depends(get_db),
+):
     """Approve a digest subscriber - adds to email_recipients.txt."""
     if not _is_admin(request):
         return RedirectResponse("/admin/", status_code=302)
 
-    if email:
-        _add_to_recipients(email)
-        _update_subscriber_status(email, "APPROVED")
+    sub = db.query(DigestSubscriber).filter(DigestSubscriber.id == subscriber_id).first()
+    if sub:
+        # Add to email_recipients.txt
+        existing = set()
+        if RECIPIENTS_FILE.exists():
+            existing = {
+                line.strip().lower()
+                for line in RECIPIENTS_FILE.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.startswith("#")
+            }
+        if sub.email.lower() not in existing:
+            with RECIPIENTS_FILE.open("a", encoding="utf-8") as f:
+                f.write(sub.email.strip() + "\n")
+
+        sub.status = "APPROVED"
+        sub.resolved_at = datetime.utcnow()
+        db.commit()
 
     return RedirectResponse("/admin/?approved_sub=1", status_code=303)
 
 
 @router.post("/subscribers/reject")
-def reject_subscriber(request: Request, email: str = Form("")):
+def reject_subscriber(
+    request: Request,
+    subscriber_id: int = Form(0),
+    db: Session = Depends(get_db),
+):
     """Reject a digest subscriber request."""
     if not _is_admin(request):
         return RedirectResponse("/admin/", status_code=302)
 
-    if email:
-        _update_subscriber_status(email, "REJECTED")
+    sub = db.query(DigestSubscriber).filter(DigestSubscriber.id == subscriber_id).first()
+    if sub:
+        sub.status = "REJECTED"
+        sub.resolved_at = datetime.utcnow()
+        db.commit()
 
     return RedirectResponse("/admin/?rejected_sub=1", status_code=303)
 

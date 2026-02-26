@@ -4,29 +4,23 @@ Digest router - Subscribe page and send endpoint.
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from webapp.dependencies import get_db
+from webapp.models import DigestSubscriber
 
 router = APIRouter(prefix="/digest", tags=["digest"])
 templates = Jinja2Templates(directory="webapp/templates")
 
 OUTPUT_DIR = Path("outputs")
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-SUBSCRIBERS_FILE = PROJECT_ROOT / "config" / "digest_subscribers.txt"
 
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
-
-
-def _already_subscribed(email: str) -> bool:
-    """Check if email is already in subscribers file."""
-    if not SUBSCRIBERS_FILE.exists():
-        return False
-    content = SUBSCRIBERS_FILE.read_text(encoding="utf-8")
-    return email.lower() in content.lower()
 
 
 @router.get("/")
@@ -45,7 +39,7 @@ def subscribe_page(request: Request):
 
 
 @router.post("/subscribe")
-def subscribe_submit(request: Request, email: str = Form(...)):
+def subscribe_submit(request: Request, email: str = Form(...), db: Session = Depends(get_db)):
     """Handle subscription request."""
     email = email.strip().lower()
 
@@ -56,18 +50,19 @@ def subscribe_submit(request: Request, email: str = Form(...)):
             "error": "Please enter a valid email address.",
         })
 
-    if _already_subscribed(email):
+    # Check if already submitted (any status)
+    existing = db.query(DigestSubscriber).filter(
+        func.lower(DigestSubscriber.email) == email
+    ).first()
+    if existing:
         return templates.TemplateResponse("digest_subscribe.html", {
             "request": request,
             "submitted": False,
             "error": "This email has already been submitted.",
         })
 
-    # Append to subscribers file
-    timestamp = datetime.now().isoformat(timespec="seconds")
-    line = f"PENDING|{email}|{timestamp}\n"
-    with open(SUBSCRIBERS_FILE, "a", encoding="utf-8") as f:
-        f.write(line)
+    db.add(DigestSubscriber(email=email))
+    db.commit()
 
     return templates.TemplateResponse("digest_subscribe.html", {
         "request": request,

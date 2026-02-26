@@ -39,6 +39,18 @@
 <div style="background:var(--green-bg); border-left:4px solid var(--green); padding:12px 16px; border-radius:0 8px 8px 0; margin-bottom:16px;">
   <strong style="color:var(--green);">Weekly intelligence brief sent successfully.</strong> Check your inbox.
 </div>
+{% elif request.query_params.get('digest') == 'test_sent' %}
+<div style="background:var(--green-bg); border-left:4px solid var(--green); padding:12px 16px; border-radius:0 8px 8px 0; margin-bottom:16px;">
+  <strong style="color:var(--green);">Test daily brief sent to relasmar@rexfin.com.</strong> Check your inbox.
+</div>
+{% elif request.query_params.get('digest') == 'test_weekly_sent' %}
+<div style="background:var(--green-bg); border-left:4px solid var(--green); padding:12px 16px; border-radius:0 8px 8px 0; margin-bottom:16px;">
+  <strong style="color:var(--green);">Test weekly report sent to relasmar@rexfin.com.</strong> Check your inbox.
+</div>
+{% elif request.query_params.get('digest') == 'test_fail' or request.query_params.get('digest') == 'test_weekly_fail' %}
+<div style="background:var(--red-bg); border-left:4px solid var(--red); padding:12px 16px; border-radius:0 8px 8px 0; margin-bottom:16px;">
+  <strong style="color:var(--red);">Test send failed.</strong> Check email configuration.
+</div>
 {% elif request.query_params.get('digest') == 'weekly_fail' %}
 <div style="background:var(--red-bg); border-left:4px solid var(--red); padding:12px 16px; border-radius:0 8px 8px 0; margin-bottom:16px;">
   <strong style="color:var(--red);">Failed to send weekly brief.</strong> Check email configuration.
@@ -78,18 +90,22 @@
     <tbody>
       {% for r in pending_requests %}
       <tr>
-        <td><strong>{{ r.name }}</strong></td>
+        <td>
+          <strong>{{ r.name }}</strong>
+          {% if r.cik|string in tracked_ciks %}
+          <span style="background:var(--orange); color:white; font-size:10px; padding:2px 6px; border-radius:3px; margin-left:6px;">ALREADY TRACKED</span>
+          {% endif %}
+        </td>
         <td style="font-size:12px;">{{ r.cik }}</td>
-        <td style="font-size:12px; color:var(--muted);">{{ r.timestamp }}</td>
+        <td style="font-size:12px; color:var(--muted);">{{ r.requested_at.strftime('%Y-%m-%d %H:%M') if r.requested_at else '' }}</td>
         <td>
           <form method="post" action="/admin/requests/approve" style="display:inline;">
-            <input type="hidden" name="cik" value="{{ r.cik }}">
-            <input type="hidden" name="name" value="{{ r.name }}">
+            <input type="hidden" name="request_id" value="{{ r.id }}">
             <button type="submit" class="btn btn-sm" style="background:var(--green); color:white; border:none;"
                     onclick="return confirm('Approve {{ r.name }}?\n\nThis will add the trust to trusts.py and the database.');">Approve</button>
           </form>
           <form method="post" action="/admin/requests/reject" style="display:inline; margin-left:4px;">
-            <input type="hidden" name="cik" value="{{ r.cik }}">
+            <input type="hidden" name="request_id" value="{{ r.id }}">
             <button type="submit" class="btn btn-sm" style="background:var(--red); color:white; border:none;"
                     onclick="return confirm('Reject this request?');">Reject</button>
           </form>
@@ -125,7 +141,7 @@
           </td>
           <td>{{ r.name }}</td>
           <td style="font-size:12px;">{{ r.cik }}</td>
-          <td style="font-size:12px;">{{ r.timestamp }}</td>
+          <td style="font-size:12px;">{{ r.requested_at.strftime('%Y-%m-%d %H:%M') if r.requested_at else '' }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -153,11 +169,22 @@
         <button type="submit" class="btn" style="background:#0984e3; color:#fff; border:none;">Send Weekly Report</button>
       </form>
     </div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
       <a href="/admin/digest/preview-daily" target="_blank"
          class="btn" style="background:#f8f9fa; color:#1a1a2e; border:1px solid #dee2e6; text-decoration:none; display:inline-block; text-align:center;">Preview Daily</a>
       <a href="/admin/digest/preview-weekly" target="_blank"
          class="btn" style="background:#f8f9fa; color:#0984e3; border:1px solid #dee2e6; text-decoration:none; display:inline-block; text-align:center;">Preview Weekly</a>
+    </div>
+    <div style="border-top:1px solid var(--border); padding-top:10px;">
+      <p style="font-size:12px; color:var(--muted); margin-bottom:8px;">Test send (relasmar@rexfin.com only):</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <form method="post" action="/admin/digest/send-test">
+          <button type="submit" class="btn btn-sm" style="background:#f8f9fa; color:#1a1a2e; border:1px solid #dee2e6;">Test Daily (to me)</button>
+        </form>
+        <form method="post" action="/admin/digest/send-test-weekly">
+          <button type="submit" class="btn btn-sm" style="background:#f8f9fa; color:#0984e3; border:1px solid #dee2e6;">Test Weekly (to me)</button>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -173,14 +200,14 @@
         {% for s in pending_subscribers %}
         <tr>
           <td>{{ s.email }}</td>
-          <td style="font-size:12px; color:var(--muted);">{{ s.timestamp[:10] }}</td>
+          <td style="font-size:12px; color:var(--muted);">{{ s.requested_at.strftime('%Y-%m-%d') if s.requested_at else '' }}</td>
           <td>
             <form method="post" action="/admin/subscribers/approve" style="display:inline;">
-              <input type="hidden" name="email" value="{{ s.email }}">
+              <input type="hidden" name="subscriber_id" value="{{ s.id }}">
               <button type="submit" class="btn btn-sm" style="background:var(--green); color:white; border:none;">Approve</button>
             </form>
             <form method="post" action="/admin/subscribers/reject" style="display:inline; margin-left:4px;">
-              <input type="hidden" name="email" value="{{ s.email }}">
+              <input type="hidden" name="subscriber_id" value="{{ s.id }}">
               <button type="submit" class="btn btn-sm" style="background:var(--red); color:white; border:none;">Reject</button>
             </form>
           </td>

@@ -136,6 +136,15 @@ def main():
     except Exception as e:
         print(f"  DB sync failed (non-fatal): {e}")
 
+    # Step 3.5: Rescore screener
+    print("\n[3.5/5] Rescoring screener...")
+    try:
+        from webapp.services.screener_3x_cache import compute_and_cache
+        compute_and_cache()
+        print("  Screener rescored.")
+    except Exception as e:
+        print(f"  Screener rescore failed (non-fatal): {e}")
+
     # Step 4: Upload DB to Render
     print("\n[4/5] Uploading database to Render...")
     upload_db_to_render()
