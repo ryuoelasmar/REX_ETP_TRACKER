@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Institutional Holdings — REX Financial Intelligence Hub{% endblock %}
+
+{% block content %}
+<div class="header">
+  <h1>Institutional Holdings (13F)</h1>
+  <div class="date">{{ total_institutions }} institutions tracked via 13F-HR filings</div>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="num">{{ total_institutions }}</div>
+    <div class="label">Institutions</div>
+  </div>
+  <div class="kpi kpi-green">
+    <div class="num">{{ total_holdings_value }}</div>
+    <div class="label">Total Holdings</div>
+  </div>
+  <div class="kpi">
+    <div class="num">{{ matched_cusips }}</div>
+    <div class="label">Matched CUSIPs</div>
+  </div>
+</div>
+
+<!-- Search -->
+<form method="get" action="/holdings/" style="margin-bottom:12px;">
+  <div class="filter-bar" style="border-radius:8px;">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search institution name..."
+           style="padding:6px 12px; border:1px solid var(--border); border-radius:4px; font-size:13px; min-width:250px;">
+    <select name="sort" style="padding:6px 12px; border:1px solid var(--border); border-radius:4px; font-size:13px;">
+      <option value="aum" {% if sort == 'aum' %}selected{% endif %}>Sort by AUM</option>
+      <option value="name" {% if sort == 'name' %}selected{% endif %}>Sort by Name</option>
+      <option value="filings" {% if sort == 'filings' %}selected{% endif %}>Sort by Filings</option>
+      <option value="last_filed" {% if sort == 'last_filed' %}selected{% endif %}>Sort by Last Filed</option>
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Search</button>
+    {% if q %}
+    <a href="/holdings/" class="btn btn-sm">Clear</a>
+    {% endif %}
+  </div>
+</form>
+
+<!-- Results -->
+<p style="font-size:var(--text-sm); color:var(--gray-500); margin-bottom:var(--sp-2);">
+  {{ total_results }} institution{{ 's' if total_results != 1 else '' }} found
+  {% if total_pages > 1 %} &middot; page {{ page }} of {{ total_pages }}{% endif %}
+</p>
+
+{% if institutions %}
+<table id="holdingsTable">
+  <thead>
+    <tr>
+      <th class="sortable" onclick="sortTable('holdingsTable', 0)">Institution</th>
+      <th class="sortable" onclick="sortTable('holdingsTable', 1)">CIK</th>
+      <th class="sortable" onclick="sortTable('holdingsTable', 2)">Holdings Value</th>
+      <th class="sortable" onclick="sortTable('holdingsTable', 3)">Positions</th>
+      <th class="sortable" onclick="sortTable('holdingsTable', 4)">Filings</th>
+      <th class="sortable" onclick="sortTable('holdingsTable', 5)">Last Filed</th>
+      <th>Type</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in institutions %}
+    {% set inst = row.Institution %}
+    <tr>
+      <td><a href="/holdings/{{ inst.cik }}">{{ inst.name }}</a></td>
+      <td style="font-family:var(--font-mono); font-size:12px;">{{ inst.cik }}</td>
+      <td>{{ fmt_value(row.total_value) }}</td>
+      <td>{{ row.holding_count }}</td>
+      <td>{{ inst.filing_count }}</td>
+      <td>{{ inst.last_filed or '' }}</td>
+      <td>{{ inst.manager_type or '--' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if total_pages > 1 %}
+<div class="pagination-bar">
+  <span class="pagination-info">{{ total_results }} institutions &middot; page {{ page }} of {{ total_pages }}</span>
+  <div class="pagination-controls">
+    {% if page > 1 %}
+    <a href="?q={{ q }}&sort={{ sort }}&per_page={{ per_page }}&page={{ page - 1 }}" class="btn btn-sm">Prev</a>
+    {% endif %}
+    {% set start_p = [1, page - 2]|max %}
+    {% set end_p = [total_pages + 1, page + 3]|min %}
+    {% for p in range(start_p, end_p) %}
+    <a href="?q={{ q }}&sort={{ sort }}&per_page={{ per_page }}&page={{ p }}" class="btn btn-sm {{ 'btn-primary' if p == page else '' }}">{{ p }}</a>
+    {% endfor %}
+    {% if page < total_pages %}
+    <a href="?q={{ q }}&sort={{ sort }}&per_page={{ per_page }}&page={{ page + 1 }}" class="btn btn-sm">Next</a>
+    {% endif %}
+  </div>
+  <select class="select-sm" onchange="location='?q={{ q }}&sort={{ sort }}&page=1&per_page='+this.value">
+    {% for n in [25, 50, 100, 200] %}
+    <option value="{{ n }}"{{ ' selected' if n == per_page else '' }}>{{ n }}/page</option>
+    {% endfor %}
+  </select>
+</div>
+{% endif %}
+
+{% else %}
+<div style="text-align:center; padding:40px; color:var(--muted); font-size:13px;">
+  {% if q %}
+  No institutions match "{{ q }}".
+  {% else %}
+  No 13F data ingested yet. Run the 13F pipeline to populate this page.
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

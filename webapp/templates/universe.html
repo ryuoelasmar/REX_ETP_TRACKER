@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Universe — REX Financial Intelligence Hub{% endblock %}
+
+{% block content %}
+<div class="header">
+  <h1>Trust Universe</h1>
+  <div class="date">{{ total_trusts }} trusts tracked across all sources</div>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="num">{{ total_trusts }}</div>
+    <div class="label">Total</div>
+  </div>
+  <div class="kpi kpi-green">
+    <div class="num">{{ type_counts.get('etf_trust', 0) }}</div>
+    <div class="label">ETF Trusts</div>
+  </div>
+  <div class="kpi kpi-orange">
+    <div class="num">{{ type_counts.get('mutual_fund', 0) }}</div>
+    <div class="label">Mutual Funds</div>
+  </div>
+  <div class="kpi">
+    <div class="num">{{ type_counts.get('grantor_trust', 0) }}</div>
+    <div class="label">Grantor Trusts</div>
+  </div>
+  <div class="kpi kpi-red">
+    <div class="num">{{ type_counts.get('unknown', 0) + type_counts.get(None, 0) }}</div>
+    <div class="label">Unclassified</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="get" action="/universe/" style="margin-bottom:12px;">
+  <div class="filter-bar" style="border-radius:8px;">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search name or CIK..."
+           style="padding:6px 12px; border:1px solid var(--border); border-radius:4px; font-size:13px; min-width:180px;">
+    <select name="entity_type" style="padding:6px 12px; border:1px solid var(--border); border-radius:4px; font-size:13px;">
+      <option value="">All Types</option>
+      {% for val, label in type_labels.items() %}
+      <option value="{{ val }}" {% if entity_type == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="regulatory_act" style="padding:6px 12px; border:1px solid var(--border); border-radius:4px; font-size:13px;">
+      <option value="">All Acts</option>
+      {% for val, label in act_labels.items() %}
+      <option value="{{ val }}" {% if regulatory_act == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="source" style="padding:6px 12px; border:1px solid var(--border); border-radius:4px; font-size:13px;">
+      <option value="">All Sources</option>
+      {% for val, label in source_labels.items() %}
+      <option value="{{ val }}" {% if source == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="is_active" style="padding:6px 12px; border:1px solid var(--border); border-radius:4px; font-size:13px;">
+      <option value="">Active & Inactive</option>
+      <option value="true" {% if is_active == 'true' %}selected{% endif %}>Active Only</option>
+      <option value="false" {% if is_active == 'false' %}selected{% endif %}>Inactive Only</option>
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+    {% if q or entity_type or regulatory_act or source or is_active %}
+    <a href="/universe/" class="btn btn-sm">Clear</a>
+    {% endif %}
+  </div>
+</form>
+
+<!-- Results count -->
+<p style="font-size:var(--text-sm); color:var(--gray-500); margin-bottom:var(--sp-2);">
+  {{ total_results }} trust{{ 's' if total_results != 1 else '' }} found
+  {% if total_pages > 1 %} &middot; page {{ page }} of {{ total_pages }}{% endif %}
+</p>
+
+<!-- Table -->
+{% if trusts %}
+<table id="universeTable">
+  <thead>
+    <tr>
+      <th class="sortable" onclick="sortTable('universeTable', 0)">Name</th>
+      <th class="sortable" onclick="sortTable('universeTable', 1)">CIK</th>
+      <th class="sortable" onclick="sortTable('universeTable', 2)">Type</th>
+      <th class="sortable" onclick="sortTable('universeTable', 3)">Act</th>
+      <th class="sortable" onclick="sortTable('universeTable', 4)">Filings</th>
+      <th class="sortable" onclick="sortTable('universeTable', 5)">Funds</th>
+      <th class="sortable" onclick="sortTable('universeTable', 6)">Last Filed</th>
+      <th class="sortable" onclick="sortTable('universeTable', 7)">Source</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in trusts %}
+    {% set t = row.Trust %}
+    <tr>
+      <td>
+        <a href="/trusts/{{ t.slug }}">{{ t.name }}</a>
+        {% if t.is_rex %}<span class="rex-badge">[REX]</span>{% endif %}
+      </td>
+      <td style="font-family:var(--font-mono); font-size:12px;">{{ t.cik }}</td>
+      <td>
+        {% if t.entity_type %}
+        <span class="badge" style="font-size:11px;">{{ type_labels.get(t.entity_type, t.entity_type) }}</span>
+        {% else %}
+        <span style="color:var(--muted);">--</span>
+        {% endif %}
+      </td>
+      <td>{{ act_labels.get(t.regulatory_act, t.regulatory_act or '--') }}</td>
+      <td>{{ t.filing_count or 0 }}</td>
+      <td>{{ row.fund_count }}</td>
+      <td>{{ t.last_filed or '' }}</td>
+      <td>
+        {% if t.source == 'curated' %}
+        <span style="color:var(--green); font-weight:500;">Curated</span>
+        {% elif t.source == 'bulk_discovery' %}
+        <span style="color:var(--blue);">Discovered</span>
+        {% elif t.source == 'watcher' %}
+        <span style="color:var(--orange);">Watcher</span>
+        {% else %}
+        <span style="color:var(--muted);">--</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if t.is_active %}
+        <span style="color:var(--green); font-weight:600;">Active</span>
+        {% else %}
+        <span style="color:var(--muted);">Inactive</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if total_pages > 1 %}
+<div class="pagination-bar">
+  <span class="pagination-info">{{ total_results }} trusts &middot; page {{ page }} of {{ total_pages }}</span>
+  <div class="pagination-controls">
+    {% if page > 1 %}
+    <a href="?{{ base_qs }}{% if base_qs %}&{% endif %}page={{ page - 1 }}" class="btn btn-sm">Prev</a>
+    {% endif %}
+    {% set start_p = [1, page - 2]|max %}
+    {% set end_p = [total_pages + 1, page + 3]|min %}
+    {% for p in range(start_p, end_p) %}
+    <a href="?{{ base_qs }}{% if base_qs %}&{% endif %}page={{ p }}" class="btn btn-sm {{ 'btn-primary' if p == page else '' }}">{{ p }}</a>
+    {% endfor %}
+    {% if page < total_pages %}
+    <a href="?{{ base_qs }}{% if base_qs %}&{% endif %}page={{ page + 1 }}" class="btn btn-sm">Next</a>
+    {% endif %}
+  </div>
+  <select class="select-sm" onchange="location='?{{ base_qs }}{% if base_qs %}&{% endif %}page=1&per_page='+this.value">
+    {% for n in [50, 100, 250, 500] %}
+    <option value="{{ n }}"{{ ' selected' if n == per_page else '' }}>{{ n }}/page</option>
+    {% endfor %}
+  </select>
+</div>
+{% endif %}
+
+{% else %}
+<div style="text-align:center; padding:40px; color:var(--muted); font-size:13px;">
+  {% if q or entity_type or regulatory_act or source %}
+  No trusts match the selected filters.
+  {% else %}
+  No trusts in the database. Run the import script first.
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

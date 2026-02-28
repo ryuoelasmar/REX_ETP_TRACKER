@@ -41,11 +41,13 @@
       </div>
     </div>
     <div class="nav-dropdown">
-      <a href="/dashboard" class="nav-dropdown-trigger {% if '/dashboard' in request.url.path or '/funds' in request.url.path or '/filings' in request.url.path %}active{% endif %}">SEC Filings <span class="nav-caret">&#9662;</span></a>
+      <a href="/dashboard" class="nav-dropdown-trigger {% if '/dashboard' in request.url.path or '/funds' in request.url.path or '/filings' in request.url.path or '/universe' in request.url.path or '/holdings' in request.url.path %}active{% endif %}">SEC Filings <span class="nav-caret">&#9662;</span></a>
       <div class="nav-dropdown-menu">
         <a href="/dashboard">Trust Dashboard</a>
+        <a href="/universe/">Trust Universe</a>
         <a href="/funds/">Fund Lookup</a>
         <a href="/filings/">Filing Explorer</a>
+        <a href="/holdings/">Institutional Holdings</a>
       </div>
     </div>
     <div class="nav-dropdown">

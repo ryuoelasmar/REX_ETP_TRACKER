@@ -1,3 +1,5 @@
+> **ARCHIVED** — This plan was superseded by organic development. See CLAUDE.md for current state.
+
 # ETP Filing Tracker - Development Roadmap
 
 **Start Date**: 2026-02-05

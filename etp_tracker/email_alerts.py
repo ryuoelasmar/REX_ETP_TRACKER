@@ -204,15 +204,16 @@ def _gather_market_snapshot() -> dict | None:
                 return f"{sign}${av:.1f}M"
             return f"{sign}${av:.2f}M"
 
+        rex_kpis = rex.get("kpis", {})
         kpis = {
-            "aum": rex.get("total_aum_fmt", "$0"),
+            "aum": rex_kpis.get("total_aum_fmt", "$0"),
             "flow_1d": flow_1d,
             "flow_1d_fmt": _fmt_flow_val(flow_1d),
             "flow_1d_positive": flow_1d >= 0,
-            "flow_1w": rex.get("flow_1w", 0),
-            "flow_1w_fmt": rex.get("flow_1w_fmt", "$0"),
-            "flow_1w_positive": rex.get("flow_1w_positive", True),
-            "products": rex.get("num_products", 0),
+            "flow_1w": rex_kpis.get("flow_1w", 0),
+            "flow_1w_fmt": rex_kpis.get("flow_1w_fmt", "$0"),
+            "flow_1w_positive": rex_kpis.get("flow_1w_positive", True),
+            "products": rex_kpis.get("num_products", 0),
         }
 
         # Top movers: top 5 inflows + top 3 outflows by 1W flow
@@ -943,6 +944,7 @@ def _gather_daily_data(db_session, since_date: str | None = None,
         select(func.count(FundStatus.id))
         .where(FundStatus.status == "EFFECTIVE")
         .where(FundStatus.effective_date >= yesterday)
+        .where(FundStatus.effective_date <= date_type.today())
     ).scalar() or 0
 
     total_pending = db_session.execute(

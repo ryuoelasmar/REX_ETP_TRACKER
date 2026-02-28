@@ -24,6 +24,7 @@ def fund_list(
     q: str = "",
     status: str = "",
     trust_id: int = 0,
+    show_mutual: str = "",
     page: int = 1,
     per_page: int = 100,
     db: Session = Depends(get_db),
@@ -42,9 +43,10 @@ def fund_list(
     # Exclude blank fund names (crypto S-1 filers with no 485 filings)
     query = query.where(FundStatus.fund_name != "")
 
-    # Exclude mutual fund share classes
-    for pattern in MUTUAL_FUND_EXCLUSIONS:
-        query = query.where(~FundStatus.fund_name.ilike(pattern))
+    # Exclude mutual fund share classes unless toggled on
+    if show_mutual != "true":
+        for pattern in MUTUAL_FUND_EXCLUSIONS:
+            query = query.where(~FundStatus.fund_name.ilike(pattern))
 
     if q:
         query = query.where(or_(
@@ -88,6 +90,7 @@ def fund_list(
         "q": q,
         "status": status,
         "trust_id": trust_id,
+        "show_mutual": show_mutual,
         "total": total_results,
         "total_all": total_all,
         "page": page,

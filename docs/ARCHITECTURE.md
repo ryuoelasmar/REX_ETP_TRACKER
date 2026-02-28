@@ -1,3 +1,5 @@
+> **ARCHIVED** — Describes the original CSV-only system. See docs/PROJECT.md for current architecture.
+
 # ETP Filing Tracker - Architecture Documentation
 
 **Version**: 1.0 (CSV-based pipeline)

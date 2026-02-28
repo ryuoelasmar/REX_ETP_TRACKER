@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 from webapp.dependencies import get_db
 from webapp.fund_filters import MUTUAL_FUND_EXCLUSIONS
 from webapp.models import Trust, FundStatus, Filing, FundExtraction
-from etp_tracker.trusts import get_act_type
 
 router = APIRouter()
 templates = Jinja2Templates(directory="webapp/templates")
@@ -24,6 +23,25 @@ templates = Jinja2Templates(directory="webapp/templates")
 _PRIORITY_TRUSTS = ["REX ETF Trust", "ETF Opportunities Trust"]
 
 _ALLOWED_DAYS = {7, 14, 30, 90, 0}
+
+_TYPE_LABELS = {
+    "etf_trust": "ETF Trust",
+    "mutual_fund": "Mutual Fund",
+    "grantor_trust": "Grantor Trust",
+    "unknown": "Unknown",
+}
+
+
+def _get_act_type(trust) -> str:
+    """Get act type from trust model (DB-driven, replaces trusts.py lookup)."""
+    if trust.regulatory_act:
+        return "33" if trust.regulatory_act == "33_act" else "40"
+    # Fallback for trusts without regulatory_act set
+    try:
+        from etp_tracker.trusts import get_act_type
+        return get_act_type(trust.cik)
+    except Exception:
+        return "40"
 
 
 def _trust_stats(db: Session) -> list[dict]:
@@ -61,6 +79,8 @@ def _trust_stats(db: Session) -> list[dict]:
             Trust.slug,
             Trust.cik,
             Trust.is_rex,
+            Trust.entity_type,
+            Trust.regulatory_act,
             func.coalesce(fund_sq.c.total, 0).label("total"),
             func.coalesce(fund_sq.c.effective, 0).label("effective"),
             func.coalesce(fund_sq.c.pending, 0).label("pending"),
@@ -76,12 +96,22 @@ def _trust_stats(db: Session) -> list[dict]:
 
     trusts = []
     for r in rows:
+        # Determine act type from DB column or fallback
+        if hasattr(r, 'regulatory_act') and r.regulatory_act:
+            act_type = "33" if r.regulatory_act == "33_act" else "40"
+        else:
+            try:
+                from etp_tracker.trusts import get_act_type as _legacy_act_type
+                act_type = _legacy_act_type(r.cik)
+            except Exception:
+                act_type = "40"
         trusts.append({
             "id": r.id, "name": r.name, "slug": r.slug, "is_rex": r.is_rex,
             "total": r.total or 0, "effective": r.effective or 0,
             "pending": r.pending or 0, "delayed": r.delayed or 0,
             "filing_count": r.filing_count or 0,
-            "act_type": get_act_type(r.cik),
+            "act_type": act_type,
+            "entity_type": getattr(r, 'entity_type', None),
         })
 
     # Sort: priority trusts first, then alphabetical
@@ -101,11 +131,16 @@ def dashboard(
     days: int = 7,
     form_type: str = "",
     filing_trust_id: int = 0,
+    entity_type: str = "",
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=50, ge=10, le=200),
     db: Session = Depends(get_db),
 ):
     trust_list = _trust_stats(db)
+
+    # Filter by entity_type if specified
+    if entity_type:
+        trust_list = [t for t in trust_list if t.get("entity_type") == entity_type]
 
     total_funds = sum(t["total"] for t in trust_list)
     total_effective = sum(t["effective"] for t in trust_list)
@@ -175,9 +210,18 @@ def dashboard(
         qs_params["form_type"] = form_type
     if filing_trust_id:
         qs_params["filing_trust_id"] = filing_trust_id
+    if entity_type:
+        qs_params["entity_type"] = entity_type
     if per_page != 50:
         qs_params["per_page"] = per_page
     base_qs = urllib.parse.urlencode(qs_params)
+
+    # Entity type counts for the full (unfiltered) trust list
+    all_trusts = _trust_stats(db) if entity_type else trust_list
+    type_counts = {}
+    for t in all_trusts:
+        et = t.get("entity_type") or "unknown"
+        type_counts[et] = type_counts.get(et, 0) + 1
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
@@ -193,6 +237,9 @@ def dashboard(
         "form_type": form_type,
         "filing_trust_id": filing_trust_id,
         "filing_trusts": filing_trusts,
+        "entity_type": entity_type,
+        "type_counts": type_counts,
+        "type_labels": _TYPE_LABELS,
         "page": page,
         "per_page": per_page,
         "total_filings": total_filings,

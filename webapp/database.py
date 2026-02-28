@@ -47,7 +47,9 @@ def init_db():
         MktCategoryAttributes, MktExclusion, MktRexFund,
         MktMasterData, MktTimeSeries, MktStockData,
         MktFundClassification, MktMarketStatus,
+        Institution, Holding, CusipMapping,
         TrustRequest, DigestSubscriber,
+        FilingAlert, TrustCandidate,
     )
     Base.metadata.create_all(bind=engine)
 

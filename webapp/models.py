@@ -26,11 +26,24 @@ class Trust(Base):
     is_rex: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     added_by: Mapped[str | None] = mapped_column(String(100))
+    # Universal tracking columns (Phase 1a)
+    entity_type: Mapped[str | None] = mapped_column(String(30))  # etf_trust | mutual_fund | grantor_trust | unknown
+    regulatory_act: Mapped[str | None] = mapped_column(String(20))  # 40_act | 33_act | unknown
+    sic_code: Mapped[str | None] = mapped_column(String(10))
+    filing_count: Mapped[int | None] = mapped_column(Integer)  # total 485-series filings on record
+    first_filed: Mapped[date | None] = mapped_column(Date)
+    last_filed: Mapped[date | None] = mapped_column(Date)
+    source: Mapped[str | None] = mapped_column(String(30))  # curated | bulk_discovery | watcher
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     filings: Mapped[list[Filing]] = relationship(back_populates="trust", cascade="all, delete-orphan")
     fund_statuses: Mapped[list[FundStatus]] = relationship(back_populates="trust", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("idx_trusts_entity_type", "entity_type"),
+        Index("idx_trusts_source", "source"),
+    )
 
 
 class Filing(Base):
@@ -496,6 +509,78 @@ class MktMarketStatus(Base):
     description: Mapped[str | None] = mapped_column(String(100))
 
 
+
+# --- 13F Institutional Holdings Models ---
+
+class Institution(Base):
+    """13F filing institutions (hedge funds, asset managers)."""
+    __tablename__ = "institutions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cik: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    manager_type: Mapped[str | None] = mapped_column(String(50))
+    aum_total: Mapped[float | None] = mapped_column(Float)
+    filing_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_filed: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    holdings: Mapped[list[Holding]] = relationship(back_populates="institution", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("idx_institutions_name", "name"),
+    )
+
+
+class Holding(Base):
+    """Individual position from 13F-HR infotable."""
+    __tablename__ = "holdings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    institution_id: Mapped[int] = mapped_column(Integer, ForeignKey("institutions.id"), nullable=False)
+    report_date: Mapped[date] = mapped_column(Date, nullable=False)
+    filing_accession: Mapped[str | None] = mapped_column(String(30))
+    issuer_name: Mapped[str | None] = mapped_column(String(300))
+    cusip: Mapped[str | None] = mapped_column(String(12))
+    value_usd: Mapped[float | None] = mapped_column(Float)  # in thousands (as reported)
+    shares: Mapped[float | None] = mapped_column(Float)
+    share_type: Mapped[str | None] = mapped_column(String(10))  # SH | PRN
+    investment_discretion: Mapped[str | None] = mapped_column(String(10))  # SOLE | DFND | OTR
+    voting_sole: Mapped[int | None] = mapped_column(Integer)
+    voting_shared: Mapped[int | None] = mapped_column(Integer)
+    voting_none: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    institution: Mapped[Institution] = relationship(back_populates="holdings")
+
+    __table_args__ = (
+        Index("idx_holdings_institution", "institution_id"),
+        Index("idx_holdings_cusip", "cusip"),
+        Index("idx_holdings_report_date", "report_date"),
+    )
+
+
+class CusipMapping(Base):
+    """Links CUSIP to our fund universe."""
+    __tablename__ = "cusip_mappings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cusip: Mapped[str] = mapped_column(String(12), unique=True, nullable=False)
+    ticker: Mapped[str | None] = mapped_column(String(20))
+    fund_name: Mapped[str | None] = mapped_column(String(300))
+    trust_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("trusts.id"))
+    source: Mapped[str | None] = mapped_column(String(30))  # mkt_master | manual
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    trust: Mapped[Trust | None] = relationship()
+
+    __table_args__ = (
+        Index("idx_cusip_mappings_ticker", "ticker"),
+    )
+
+
+
 # --- Admin Request Models ---
 
 class TrustRequest(Base):
@@ -517,3 +602,48 @@ class DigestSubscriber(Base):
     status: Mapped[str] = mapped_column(String(20), default="PENDING", nullable=False, index=True)
     requested_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+
+# --- Filing Watcher Models ---
+
+class FilingAlert(Base):
+    __tablename__ = "filing_alerts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    trust_id: Mapped[int] = mapped_column(Integer, ForeignKey("trusts.id"), nullable=False)
+    accession_number: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
+    form_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    filed_date: Mapped[date | None] = mapped_column(Date)
+    detected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    processed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    trust: Mapped["Trust"] = relationship()
+
+    __table_args__ = (
+        Index("idx_filing_alerts_trust", "trust_id"),
+        Index("idx_filing_alerts_processed", "processed"),
+        Index("idx_filing_alerts_filed", "filed_date"),
+    )
+
+
+class TrustCandidate(Base):
+    __tablename__ = "trust_candidates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cik: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    company_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    first_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    filing_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    form_types_seen: Mapped[str | None] = mapped_column(Text)
+    etf_trust_score: Mapped[float | None] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(20), default="new", nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    reviewed_by: Mapped[str | None] = mapped_column(String(100))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    __table_args__ = (
+        Index("idx_trust_candidates_status", "status"),
+        Index("idx_trust_candidates_score", "etf_trust_score"),
+    )

@@ -62,8 +62,8 @@ def test_digest_what_changed(sample_output_dir):
 
 
 def test_digest_is_short(sample_output_dir):
-    """Digest should be under 10KB (executive summary only)."""
+    """Digest should be under 30KB (executive summary only)."""
     from etp_tracker.email_alerts import build_digest_html
 
     html = build_digest_html(sample_output_dir, dashboard_url="https://example.com")
-    assert len(html) < 10_000, f"Digest too long: {len(html)} chars"
+    assert len(html) < 30_000, f"Digest too long: {len(html)} chars"

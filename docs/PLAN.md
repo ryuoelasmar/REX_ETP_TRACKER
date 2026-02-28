@@ -1,3 +1,5 @@
+> **ARCHIVED** — Agent plan from Feb 18. Market module (Agent 1) completed. See CLAUDE.md for current state.
+
 # REX Intelligence Hub - Development Plan
 
 **Created**: 2026-02-18

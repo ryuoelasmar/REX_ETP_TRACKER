@@ -36,6 +36,9 @@
       <option value="100" {% if per_page == 100 %}selected{% endif %}>100 per page</option>
       <option value="250" {% if per_page == 250 %}selected{% endif %}>250 per page</option>
     </select>
+    <label style="display:flex; align-items:center; gap:4px; font-size:13px; cursor:pointer;">
+      <input type="checkbox" name="show_mutual" value="true" {% if show_mutual == 'true' %}checked{% endif %} onchange="this.form.submit()"> Include mutual funds
+    </label>
     <button type="submit" class="btn btn-primary btn-sm">Search</button>
   </div>
 </form>

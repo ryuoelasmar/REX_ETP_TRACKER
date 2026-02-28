@@ -18,7 +18,7 @@
 <div class="kpi-row">
   <div class="kpi">
     <div class="num">{{ trusts|length }}</div>
-    <div class="label">Trusts</div>
+    <div class="label">Trusts{% if entity_type %} ({{ type_labels.get(entity_type, entity_type) }}){% endif %}</div>
   </div>
   <div class="kpi">
     <div class="num">{{ total_funds }}</div>
@@ -37,6 +37,16 @@
     <div class="label">Delayed</div>
   </div>
 </div>
+{% if type_counts and type_counts|length > 1 %}
+<div style="margin-bottom:12px; display:flex; gap:6px; flex-wrap:wrap;">
+  <a href="/dashboard?days={{ days }}{% if form_type %}&form_type={{ form_type }}{% endif %}" class="btn btn-sm {% if not entity_type %}btn-primary{% endif %}" style="font-size:12px;">All ({{ type_counts.values()|sum }})</a>
+  {% for val, label in type_labels.items() %}
+  {% if type_counts.get(val, 0) > 0 %}
+  <a href="/dashboard?entity_type={{ val }}&days={{ days }}{% if form_type %}&form_type={{ form_type }}{% endif %}" class="btn btn-sm {% if entity_type == val %}btn-primary{% endif %}" style="font-size:12px;">{{ label }} ({{ type_counts.get(val, 0) }})</a>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
 
 <!-- Recent Filings -->
 <div class="section-header">

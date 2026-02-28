@@ -6,10 +6,9 @@ beautifulsoup4>=4.12.0
 lxml>=4.9.0
 pdfminer.six>=20221105
 
-# Dashboard (legacy Streamlit)
-streamlit>=1.30.0
 openpyxl>=3.1.0
 scipy>=1.11.0
+reportlab>=4.0.0
 
 # Web platform (FastAPI)
 fastapi>=0.115.0
@@ -28,6 +27,10 @@ anthropic>=0.39.0
 # Testing
 pytest>=8.0.0
 httpx>=0.27.0
+
+# Async SEC client
+aiohttp>=3.9.0
+aiolimiter>=1.1.0
 
 # Deployment
 gunicorn>=22.0.0

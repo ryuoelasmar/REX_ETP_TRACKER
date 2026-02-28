@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}{{ institution.name }} — REX Financial Intelligence Hub{% endblock %}
+
+{% block content %}
+<div class="header">
+  <h1>{{ institution.name }}</h1>
+  <div class="date">
+    CIK {{ institution.cik }}
+    {% if institution.manager_type %} &middot; {{ institution.manager_type }}{% endif %}
+    {% if institution.last_filed %} &middot; Last filed {{ institution.last_filed }}{% endif %}
+  </div>
+</div>
+
+<!-- Summary KPIs -->
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="num">{{ total_value }}</div>
+    <div class="label">Total Value</div>
+  </div>
+  <div class="kpi">
+    <div class="num">{{ total_positions }}</div>
+    <div class="label">Positions</div>
+  </div>
+  <div class="kpi kpi-green">
+    <div class="num">{{ matched_count }}</div>
+    <div class="label">Matched Funds</div>
+  </div>
+  <div class="kpi">
+    <div class="num">{{ institution.filing_count }}</div>
+    <div class="label">13F Filings</div>
+  </div>
+</div>
+
+{% if latest_date %}
+<p style="font-size:var(--text-sm); color:var(--gray-500); margin-bottom:var(--sp-3);">
+  Showing holdings as of {{ latest_date }}
+</p>
+{% endif %}
+
+<!-- Matched Holdings (our fund universe) -->
+{% if matched_holdings %}
+<div class="section-header">
+  <h2>Matched Holdings</h2>
+  <span class="badge">{{ matched_holdings|length }}</span>
+</div>
+<p style="font-size:var(--text-sm); color:var(--gray-500); margin-bottom:var(--sp-2);">
+  Positions matching our fund universe via CUSIP
+</p>
+<table id="matchedTable">
+  <thead>
+    <tr>
+      <th class="sortable" onclick="sortTable('matchedTable', 0)">Issuer</th>
+      <th>CUSIP</th>
+      <th>Fund</th>
+      <th class="sortable" onclick="sortTable('matchedTable', 3)">Value ($K)</th>
+      <th class="sortable" onclick="sortTable('matchedTable', 4)">Shares</th>
+      <th>Type</th>
+      <th>Discretion</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in matched_holdings %}
+    {% set h = item.holding %}
+    {% set m = item.mapping %}
+    {% set f = item.fund %}
+    <tr>
+      <td>{{ h.issuer_name or '--' }}</td>
+      <td style="font-family:var(--font-mono); font-size:12px;">{{ h.cusip }}</td>
+      <td>
+        {% if f and f.series_id %}
+        <a href="/funds/{{ f.series_id }}">{{ m.ticker or f.fund_name or '--' }}</a>
+        {% elif m.ticker %}
+        {{ m.ticker }}
+        {% else %}
+        {{ m.fund_name or '--' }}
+        {% endif %}
+      </td>
+      <td style="text-align:right;">{{ '{:,.0f}'.format(h.value_usd) if h.value_usd else '--' }}</td>
+      <td style="text-align:right;">{{ '{:,.0f}'.format(h.shares) if h.shares else '--' }}</td>
+      <td>{{ h.share_type or '' }}</td>
+      <td>{{ h.investment_discretion or '' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<!-- All Holdings -->
+<div class="section-header" style="margin-top:30px;">
+  <h2>All Holdings</h2>
+  <span class="badge">{{ holdings|length }}</span>
+</div>
+
+{% if holdings %}
+<table id="allHoldingsTable">
+  <thead>
+    <tr>
+      <th class="sortable" onclick="sortTable('allHoldingsTable', 0)">Issuer</th>
+      <th>CUSIP</th>
+      <th class="sortable" onclick="sortTable('allHoldingsTable', 2)">Value ($K)</th>
+      <th class="sortable" onclick="sortTable('allHoldingsTable', 3)">Shares</th>
+      <th>Type</th>
+      <th>Discretion</th>
+      <th>Voting (Sole/Shared/None)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for h in holdings %}
+    <tr>
+      <td>{{ h.issuer_name or '--' }}</td>
+      <td style="font-family:var(--font-mono); font-size:12px;">{{ h.cusip or '' }}</td>
+      <td style="text-align:right;">{{ '{:,.0f}'.format(h.value_usd) if h.value_usd else '--' }}</td>
+      <td style="text-align:right;">{{ '{:,.0f}'.format(h.shares) if h.shares else '--' }}</td>
+      <td>{{ h.share_type or '' }}</td>
+      <td>{{ h.investment_discretion or '' }}</td>
+      <td style="font-size:12px;">
+        {{ h.voting_sole or 0 }} / {{ h.voting_shared or 0 }} / {{ h.voting_none or 0 }}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div style="text-align:center; padding:40px; color:var(--muted); font-size:13px;">
+  No holdings data for this institution.
+</div>
+{% endif %}
+
+<div style="margin-top:20px;">
+  <a href="/holdings/" class="btn btn-sm">&larr; Back to Institutions</a>
+</div>
+
+{% endblock %}
