@@ -1029,3 +1029,61 @@
 
 /* Dark mode sparkline wrapper */
 [data-theme="dark"] .sparkline-wrapper { border-top-color: var(--gray-200); }
+
+/* ========================================================
+   Tab Navigation - Zero-Reload Loading & Transitions
+   ======================================================== */
+
+#tab-content {
+  position: relative;
+  min-height: 200px;
+}
+
+/* Semi-transparent overlay during load */
+#tab-content.tab-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.6);
+  z-index: 10;
+}
+
+/* Spinner */
+#tab-content.tab-loading::before {
+  content: '';
+  position: absolute;
+  top: 120px;
+  left: 50%;
+  width: 32px;
+  height: 32px;
+  margin-left: -16px;
+  border: 3px solid #E2E8F0;
+  border-top-color: #1E40AF;
+  border-radius: 50%;
+  animation: tab-spin 0.6s linear infinite;
+  z-index: 11;
+}
+
+@keyframes tab-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Fade-in after content swap */
+@keyframes tab-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tab-content-enter {
+  animation: tab-fade-in 150ms ease-out;
+}
+
+/* Dark mode loading overlay */
+[data-theme="dark"] #tab-content.tab-loading::after {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+[data-theme="dark"] #tab-content.tab-loading::before {
+  border-color: rgba(255, 255, 255, 0.1);
+  border-top-color: #3B82F6;
+}

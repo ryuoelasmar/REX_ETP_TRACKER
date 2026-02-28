@@ -1,5 +1,5 @@
 {% set active_tab = 'treemap' %}
-{% extends "market/base.html" %}
+{% extends base_template|default("market/base.html") %}
 
 {% block title %}Product Treemap — REX Financial Intelligence Hub{% endblock %}
 

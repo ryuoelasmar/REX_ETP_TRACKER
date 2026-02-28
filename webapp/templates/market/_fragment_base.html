@@ -1,0 +1,8 @@
+{# Fragment-only base for AJAX tab navigation.
+   Renders just the tab content + inline scripts, no page shell.
+   Used when ?fragment=1 is present in the request.
+   Blocks are defined so child templates don't error when overriding them. #}
+<!-- {% block title %}{% endblock %} -->
+<!-- {% block head %}{% endblock %} -->
+{% block content %}{% block market_content %}{% endblock %}{% endblock %}
+{% block scripts %}{% block market_scripts %}{% endblock %}{% endblock %}

@@ -1,12 +1,7 @@
 {% set active_tab = 'category' %}
-{% extends "market/base.html" %}
+{% extends base_template|default("market/base.html") %}
 
 {% block title %}Category View — REX Financial Intelligence Hub{% endblock %}
-
-{% block head %}
-{{ super() }}
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@2"></script>
-{% endblock %}
 
 {% block market_content %}
 <div id="market-category-page" data-category="{{ category if category and category != 'All' else '' }}">

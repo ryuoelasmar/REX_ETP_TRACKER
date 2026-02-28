@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="/static/css/market.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@2"></script>
 {% endblock %}
 
 {% block content %}
@@ -22,6 +23,7 @@
 </div>
 {% if data_as_of %}<div class="market-data-date">Data as of {{ data_as_of }}</div>{% endif %}
 
+<div id="tab-content">
 {% if not available %}
 <div class="alert alert-warning">
   Dashboard data file not found. Place <code>The Dashboard.xlsx</code> in <code>data/DASHBOARD/</code>.
@@ -29,9 +31,11 @@
 {% else %}
 {% block market_content %}{% endblock %}
 {% endif %}
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script src="/static/js/market.js"></script>
+<script src="/static/js/tabs.js"></script>
 {% block market_scripts %}{% endblock %}
 {% endblock %}

@@ -24,6 +24,21 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/market", tags=["market-advanced"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
+# Auto-inject base_template for fragment tab navigation (?fragment=1)
+_orig_template_response = templates.TemplateResponse
+
+
+def _fragment_template_response(name, context, *args, **kwargs):
+    request = context.get("request")
+    if request and hasattr(request, "query_params") and request.query_params.get("fragment") == "1":
+        context.setdefault("base_template", "market/_fragment_base.html")
+    else:
+        context.setdefault("base_template", "market/base.html")
+    return _orig_template_response(name, context, *args, **kwargs)
+
+
+templates.TemplateResponse = _fragment_template_response
+
 
 @router.get("/calendar")
 def calendar_view(
