@@ -108,6 +108,24 @@
     });
   }
 
+  function makeStickyHeaders() {
+    // Apply sticky headers to all tables with sortable columns (legacy system).
+    // rt-table system already has sticky via CSS, so skip those.
+    document.querySelectorAll('table:not(.rt-table)').forEach(function(table) {
+      var thead = table.querySelector('thead');
+      if (!thead || thead.hasAttribute('data-sticky-initialized')) return;
+      // Only target tables with sortable th (onclick or .sortable class)
+      var hasSortable = thead.querySelector('th.sortable, th[onclick]');
+      if (!hasSortable) return;
+      thead.setAttribute('data-sticky-initialized', '1');
+      // Tables inside .table-scroll-wrap stick to container top
+      var inScrollWrap = table.closest('.table-scroll-wrap');
+      thead.style.position = 'sticky';
+      thead.style.top = inScrollWrap ? '0' : 'var(--nav-height, 48px)';
+      thead.style.zIndex = '5';
+    });
+  }
+
   function initSortableHeaders() {
     document.querySelectorAll('.rt-table .rt-sortable').forEach(function(th) {
       if (th.hasAttribute('data-sort-initialized')) return;
@@ -120,6 +138,7 @@
         doSort(table, colIdx, sortType);
       });
     });
+    makeStickyHeaders();
   }
 
   if (document.readyState === 'loading') {

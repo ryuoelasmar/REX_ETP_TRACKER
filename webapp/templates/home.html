@@ -6,6 +6,25 @@
   <p class="home-tagline">
     REX's central intelligence platform — market positioning, SEC filing activity, and product analytics across the full ETP universe.
   </p>
+  <div class="hero-kpi-strip">
+    <div class="hero-kpi-box" id="kpi-aum">
+      <div class="hero-kpi-value" data-kpi="rex_aum">--</div>
+      <div class="hero-kpi-change" id="kpi-aum-change"></div>
+      <div class="hero-kpi-label">REX AUM</div>
+    </div>
+    <div class="hero-kpi-box" id="kpi-flows">
+      <div class="hero-kpi-value" data-kpi="weekly_flows">--</div>
+      <div class="hero-kpi-label">Weekly Flows</div>
+    </div>
+    <div class="hero-kpi-box" id="kpi-filings">
+      <div class="hero-kpi-value" data-kpi="todays_filings">--</div>
+      <div class="hero-kpi-label">Today's Filings</div>
+    </div>
+    <div class="hero-kpi-box" id="kpi-institutions">
+      <div class="hero-kpi-value" data-kpi="institutions_count">--</div>
+      <div class="hero-kpi-label">Institutions Tracked</div>
+    </div>
+  </div>
 </div>
 
 <div class="home-section">
@@ -105,4 +124,35 @@
 <div class="home-contact">
   <p>Questions or feedback? Contact <a href="mailto:relasmar@rexfin.com">relasmar@rexfin.com</a></p>
 </div>
+
+<script>
+(function() {
+  fetch('/api/v1/home-kpis')
+    .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(d) {
+      var aumEl = document.querySelector('[data-kpi="rex_aum"]');
+      if (aumEl && d.rex_aum) aumEl.textContent = d.rex_aum;
+
+      var changeEl = document.getElementById('kpi-aum-change');
+      if (changeEl && d.rex_aum_change_pct != null && d.rex_aum_change_pct !== 0) {
+        var pct = d.rex_aum_change_pct;
+        var sign = pct > 0 ? '+' : '';
+        changeEl.textContent = sign + pct.toFixed(1) + '% MoM';
+        changeEl.classList.add(pct >= 0 ? 'hero-kpi-change--up' : 'hero-kpi-change--down');
+      }
+
+      var flowsEl = document.querySelector('[data-kpi="weekly_flows"]');
+      if (flowsEl && d.weekly_flows) flowsEl.textContent = d.weekly_flows;
+
+      var filingsEl = document.querySelector('[data-kpi="todays_filings"]');
+      if (filingsEl && d.todays_filings != null) filingsEl.textContent = d.todays_filings;
+
+      var instEl = document.querySelector('[data-kpi="institutions_count"]');
+      if (instEl && d.institutions_count != null) {
+        instEl.textContent = d.institutions_count.toLocaleString();
+      }
+    })
+    .catch(function() { /* leave "--" placeholders on error */ });
+})();
+</script>
 {% endblock %}

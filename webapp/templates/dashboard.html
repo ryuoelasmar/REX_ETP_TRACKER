@@ -3,6 +3,10 @@
 
 {% block content %}
 <div class="header">
+  <div class="breadcrumb">
+    <a href="/">Home</a><span class="sep">/</span>
+    <span>Trust Dashboard</span>
+  </div>
   <h1>ETP Filing Tracker</h1>
   <div class="date">{{ today.strftime('%B %d, %Y') }} &middot; {{ trusts|length }} trusts monitored</div>
 </div>
